@@ -39,4 +39,18 @@ The project emphasizes **modular design**, **responsive UI**, and **clean code s
 ---
 
 ## 🗂 Project Structure
-
+my-app/
+├─ src/app/
+│ ├─ about/ # About page
+│ ├─ feed/ # Feed page showing all posts
+│ ├─ login/ # Login page
+│ ├─ profile/ # User profile page
+│ ├─ post/ # Post creation and display
+│ ├─ signin/ # Signin page
+│ ├─ notification/ # Notifications page
+│ └─ globals.css # Global styling
+├─ public/ # Static assets
+├─ package.json # Project dependencies and scripts
+├─ package-lock.json
+├─ next.config.js # Next.js configuration
+├─ tailwind.config.js # Tailwind CSS configuration
