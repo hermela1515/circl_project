@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+#  Circl – Social Media App
 
-## Getting Started
+**Circl** is a modern, responsive social media platform built with **Next.js** and **Tailwind CSS**.  
+It allows users to **connect, share, and interact** with posts, providing a smooth and interactive experience similar to popular social media platforms.
 
-First, run the development server:
+- Project Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Circl is designed to mimic a **real-world social media platform**. Users can:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Create accounts and manage their profile  
+- Post content including text and images  
+- Interact with other users’ posts by liking or commenting  
+- Receive notifications for interactions  
+- Explore other users’ profiles and posts  
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+The project emphasizes **modular design**, **responsive UI**, and **clean code structure**, making it easy for teams to collaborate.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🚀 Features
 
-To learn more about Next.js, take a look at the following resources:
+### Authentication & User Management
+- Secure **signup and signin** system  
+- Password encryption for user safety  
+- Session management to keep users logged in  
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Social Interaction
+- **Like and comment** on posts for engagement  
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+### Notifications
+- Real-time notifications when someone interacts with your posts  
+- Notification panel for easy access to updates  
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Responsive Design
+- Fully responsive for **mobile, tablet, and desktop**  
+- Clean, modern UI using **Tailwind CSS**  
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## 🗂 Project Structure
+my-app/
+├─ src/app/
+│ ├─ about/ # About page
+│ ├─ feed/ # Feed page showing all posts
+│ ├─ login/ # Login page
+│ ├─ profile/ # User profile page
+│ ├─ post/ # Post creation and display
+│ ├─ signin/ # Signin page
+│ ├─ notification/ # Notifications page
+│ └─ globals.css # Global styling
+├─ public/ # Static assets
+├─ package.json # Project dependencies and scripts
+├─ package-lock.json
+├─ next.config.js # Next.js configuration
+├─ tailwind.config.js # Tailwind CSS configuration
