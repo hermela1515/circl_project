@@ -7,43 +7,44 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowButton(true), 1200);
+    const timer = setTimeout(() => setShowButton(true), 2000);
     return () => clearTimeout(timer);
   }, []);
 
   const handleContinue = () => {
-    router.push("/feed");
+    router.push("/login"); // go to login page
   };
 
   return (
     <main className="h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center">
-      {/* Dark overlay for readability */}
-      <div className="flex h-full w-full items-center justify-center bg-black/50 relative">
-        {/* Logo + Title */}
-        <div
-          className={`flex items-center gap-4 sm:gap-6 text-white transition-all duration-1000 ${
-            showButton ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-6"
-          }`}
-        >
+      {/* Overlay with flexbox centering */}
+      <div className="flex h-full w-full items-center justify-center bg-black/40 relative px-4">
+        {/* Logo + Title wrapper */}
+        <div className="relative flex flex-col items-center justify-center">
           <img
             src="/images/circle.png"
             alt="Circl Logo"
-            className="w-48 sm:w-64 md:w-80 lg:w-[26rem] xl:w-[30rem] h-auto drop-shadow-xl"
+            className="w-80 sm:w-96 md:w-[28rem] lg:w-[32rem] xl:w-[36rem] h-auto max-w-full rounded-lg shadow-lg"
           />
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold font-serif tracking-wide">
+          <h1
+            className="absolute top-1/2 left-1/2 transform -translate-x-1/2 
+            translate-x-6 sm:translate-x-8 md:translate-x-10 lg:translate-x-12 
+            -translate-y-1/2 translate-y-6 sm:translate-y-8 md:translate-y-10
+            text-lg sm:text-xl md:text-2xl font-bold font-serif text-white text-center"
+          >
             Circl
           </h1>
         </div>
 
-        {/* Continue Button */}
-        <div className="absolute bottom-16 sm:bottom-20 md:bottom-24 left-1/2 transform -translate-x-1/2">
+        {/* Continue button */}
+        <div className="absolute bottom-16 sm:bottom-20 md:bottom-24 left-1/2 transform -translate-x-1/2 w-full flex justify-center">
           <button
             onClick={handleContinue}
-            className={`flex items-center justify-center gap-2 px-6 py-3 bg-white text-black rounded-full w-36 sm:w-44 md:w-56 lg:w-60 font-medium shadow-md hover:shadow-xl hover:bg-gray-100 active:scale-95 transition-all duration-500
-            ${showButton ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+            className={`flex items-center justify-center gap-2 px-6 py-3 bg-white text-black rounded-3xl w-40 sm:w-48 md:w-60 transition-all duration-500
+            ${showButton ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-10"}`}
           >
             Continue
-            <span className="text-lg sm:text-xl">&#8594;</span>
+            <span className="text-xl">&#8594;</span>
           </button>
         </div>
       </div>

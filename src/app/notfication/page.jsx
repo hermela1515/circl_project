@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { FaArrowLeft } from "react-icons/fa";
 
 export default function NotificationPage() {
   const [notifications, setNotifications] = useState([]);
+  const router = useRouter();
 
   // Simulate fetching notifications (replace with real API later)
   useEffect(() => {
@@ -26,9 +29,18 @@ export default function NotificationPage() {
   };
 
   return (
-    <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat">
+    <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat relative">
+      {/* Back Button */}
+      <button
+        onClick={() => router.back()}
+        className="absolute top-4 left-4 z-20 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-2 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg"
+        title="Go Back"
+      >
+        <FaArrowLeft className="text-sm sm:text-base" />
+      </button>
+
       <div className="flex min-h-screen w-full items-center justify-center bg-black/40 p-4">
-        <div className="h-auto w-full max-w-sm sm:max-w-md md:max-w-lg lg:w-[500px] p-4 sm:p-6 md:p-8 bg-white/10 rounded-2xl sm:rounded-3xl md:rounded-4xl shadow-lg">
+        <div className="h-auto w-full max-w-sm sm:max-w-md md:max-w-lg lg:w-[500px] p-4 sm:p-6 md:p-8 bg-white/10 rounded-2xl sm:rounded-3xl md:rounded-4xl shadow-lg relative">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white text-center mb-6 sm:mb-8">
             Notifications
           </h1>

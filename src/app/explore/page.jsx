@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FaArrowLeft } from "react-icons/fa";
 
 export default function SettingsPage() {
   const [username, setUsername] = useState("John Doe");
   const [email, setEmail] = useState("john@example.com");
   const [password, setPassword] = useState("");
   const [darkMode, setDarkMode] = useState(false);
+  const router = useRouter();
 
   const handleSave = () => {
     alert("Settings saved!");
@@ -22,7 +25,16 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat p-2 sm:p-4 md:p-8">
+    <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat p-2 sm:p-4 md:p-8 relative">
+      {/* Back Button */}
+      <button
+        onClick={() => router.back()}
+        className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"
+        title="Go Back"
+      >
+        <FaArrowLeft className="text-sm sm:text-base" />
+      </button>
+      
       {/* Navigation */}
       <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6 md:mb-8 justify-center sm:justify-start">
         <Link href="/" className="px-3 sm:px-4 py-2 rounded-lg shadow hover:bg-blue-950 text-white transition text-sm sm:text-base">

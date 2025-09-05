@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FaArrowLeft } from "react-icons/fa";
 
 export default function PostPage() {
   const [image, setImage] = useState(null);
@@ -39,7 +40,16 @@ export default function PostPage() {
   };
 
   return (
-    <main className="min-h-screen flex justify-center items-center bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat p-2 sm:p-4">
+    <main className="min-h-screen flex justify-center items-center bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat p-2 sm:p-4 relative">
+      {/* Back Button */}
+      <button
+        onClick={() => router.back()}
+        className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"
+        title="Go Back"
+      >
+        <FaArrowLeft className="text-sm sm:text-base" />
+      </button>
+      
       <form
         onSubmit={handleSubmit}
         className="bg-white/90 shadow-2xl rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm sm:max-w-md md:max-w-lg backdrop-blur-md"

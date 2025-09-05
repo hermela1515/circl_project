@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { FaHeart, FaRegHeart, FaComment, FaTrash, FaSearch, FaTimes, FaArrowLeft } from "react-icons/fa";
 
 export default function FeedPage() {
@@ -14,6 +15,7 @@ export default function FeedPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
 
   const [currentUser, setCurrentUser] = useState({
     username: "John Doe",
@@ -143,6 +145,15 @@ export default function FeedPage() {
 
   return (
     <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat">
+      {/* Back Button */}
+      <button
+        onClick={() => router.back()}
+        className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"
+        title="Go Back"
+      >
+        <FaArrowLeft className="text-sm sm:text-base" />
+      </button>
+      
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-2 sm:px-4 md:px-6 pt-2 sm:pt-4 gap-2 sm:gap-4">
         <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start">
           <div className="flex items-center gap-1 sm:gap-2">
@@ -166,9 +177,11 @@ export default function FeedPage() {
         </div>
         <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto ${isMenuOpen ? 'flex' : 'hidden'} sm:flex`}>
           <nav className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 md:gap-6 w-full sm:w-auto">
-            <Link href="/" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">Home</Link>
+           <Link href="/" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">Home</Link>
             <Link href="/notfication" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">Notifications</Link>
             <Link href="/post" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1"> Add Post</Link>
+            <Link href="/about" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">About</Link>
+            
             
           </nav>
 
