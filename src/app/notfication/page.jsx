@@ -7,8 +7,6 @@ import { FaArrowLeft } from "react-icons/fa";
 export default function NotificationPage() {
   const [notifications, setNotifications] = useState([]);
   const router = useRouter();
-
-  // Simulate fetching notifications (replace with real API later)
   useEffect(() => {
     const fakeData = [
       { id: 1, text: "Alice liked your post", read: false },
@@ -30,7 +28,7 @@ export default function NotificationPage() {
 
   return (
     <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat relative">
-      {/* Back Button */}
+    
       <button
         onClick={() => router.back()}
         className="absolute top-4 left-4 z-20 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-2 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg"
@@ -66,8 +64,6 @@ export default function NotificationPage() {
               ))}
             </ul>
           )}
-
-          {/* Clear button */}
           {notifications.length > 0 && (
             <div className="mt-4 sm:mt-6 text-center">
               <button

@@ -17,17 +17,14 @@ export default function LogIn() {
       alert("Please enter both username and password");
       return;
     }
-
-    // For now, just log values (replace with API call later)
     console.log("Logging in with:", { username, password });
 
-    // 🔹 Redirect to feed after successful login
     router.push("/feed");
   };
 
   return (
     <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat relative">
-      {/* Back Button */}
+    
       <button
         onClick={() => router.back()}
         className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"
@@ -44,8 +41,6 @@ export default function LogIn() {
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white text-center mb-6 sm:mb-8">
             Log In
           </h1>
-
-          {/* Username */}
           <label className="block text-white mb-2 ml-2 text-sm sm:text-base">
             Username
           </label>
@@ -55,8 +50,6 @@ export default function LogIn() {
             onChange={(e) => setUsername(e.target.value)}
             className="bg-white text-black h-9 sm:h-10 w-full rounded-xl sm:rounded-2xl px-3 sm:px-4 mb-4 sm:mb-6 text-sm sm:text-base"
           />
-
-          {/* Password */}
           <label className="block text-white mb-2 ml-2 text-sm sm:text-base">
             Password
           </label>
@@ -66,8 +59,6 @@ export default function LogIn() {
             onChange={(e) => setPassword(e.target.value)}
             className="bg-white text-black h-9 sm:h-10 w-full rounded-xl sm:rounded-2xl px-3 sm:px-4 mb-3 sm:mb-4 text-sm sm:text-base"
           />
-
-          {/* Forget password */}
           <div className="text-right mb-4 sm:mb-6">
             <Link
               href="/forgot-password"
@@ -76,16 +67,12 @@ export default function LogIn() {
               Forget password?
             </Link>
           </div>
-
-          {/* Login button */}
           <button
             type="submit"
             className="bg-blue-950 hover:bg-blue-900 w-full h-10 sm:h-12 rounded-2xl sm:rounded-3xl text-lg sm:text-xl text-white font-semibold"
           >
             Log In
           </button>
-
-          {/* Sign In Link */}
           <div className="text-center mt-4 sm:mt-6">
             <Link
               href="/signin"

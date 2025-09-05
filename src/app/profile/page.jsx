@@ -50,15 +50,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-br from-purple-900 via-blue-800 to-indigo-900 p-2 sm:p-4 md:p-6 relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse"></div>
-      </div>
-      
-      {/* Back Button */}
+    <main className="min-h-screen w-full bg-purple-950 p-2 sm:p-4 md:p-6 relative overflow-hidden">
+     
+     
       <button
         onClick={() => router.back()}
         className="absolute top-4 left-4 z-20 bg-white/20 backdrop-blur-md hover:bg-white/30 text-white p-2 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-lg"
@@ -71,7 +65,7 @@ export default function ProfilePage() {
         <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-white/10 rounded-3xl"></div>
 
         <div className="relative group w-[100px] h-[100px] sm:w-[120px] sm:h-[120px] md:w-[150px] md:h-[150px] z-10 mb-4">
-          {/* Profile Image with Glow Effect */}
+       
           <div className="relative">
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full opacity-75 blur-sm" style={{animation: 'spin 8s linear infinite'}}></div>
             <Image
@@ -82,8 +76,6 @@ export default function ProfilePage() {
               className="relative rounded-full object-cover border-4 border-white/30 shadow-2xl w-full h-full hover:scale-105 transition-transform duration-300"
             />
           </div>
-          
-          {/* Edit Button with Enhanced Styling */}
           <label className="absolute -bottom-2 -right-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-2 sm:p-2.5 rounded-full cursor-pointer hover:from-purple-700 hover:to-blue-700 shadow-xl transition-all duration-300 hover:scale-110 group-hover:shadow-2xl">
             <input
               type="file"
@@ -94,12 +86,9 @@ export default function ProfilePage() {
             <span className="text-xs sm:text-sm font-bold">✎</span>
           </label>
         </div>
-        {/* Username with Gradient Text */}
         <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold mt-2 sm:mt-3 md:mt-4 bg-gradient-to-r from-white via-purple-200 to-blue-200 bg-clip-text text-transparent tracking-wide z-10 text-center break-words drop-shadow-lg">
           {currentUser.username}
         </h1>
-        
-        {/* Bio Section with Enhanced Styling */}
         <div className="mt-3 sm:mt-4 text-center w-full z-10">
           {editingBio ? (
             <div className="flex flex-col items-center gap-3 sm:gap-4 w-full">
@@ -139,26 +128,11 @@ export default function ProfilePage() {
                 }}
                 className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-sm text-white hover:from-purple-500/30 hover:to-blue-500/30 px-4 py-2 rounded-lg transition-all duration-300 text-xs sm:text-sm md:text-base font-medium border border-white/20 hover:border-white/40"
               >
-                ✏️ Edit Bio
+                 Edit Bio
               </button>
             </div>
           )}
-        </div>
         
-        {/* Stats Section */}
-        <div className="mt-4 sm:mt-6 w-full grid grid-cols-3 gap-2 sm:gap-4 z-10">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 text-center border border-white/20">
-            <div className="text-white font-bold text-sm sm:text-base">0</div>
-            <div className="text-white/70 text-xs sm:text-sm">Posts</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 text-center border border-white/20">
-            <div className="text-white font-bold text-sm sm:text-base">0</div>
-            <div className="text-white/70 text-xs sm:text-sm">Followers</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-2 sm:p-3 text-center border border-white/20">
-            <div className="text-white font-bold text-sm sm:text-base">0</div>
-            <div className="text-white/70 text-xs sm:text-sm">Following</div>
-          </div>
         </div>
       </div>
     </main>

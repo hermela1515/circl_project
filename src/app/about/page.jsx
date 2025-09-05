@@ -68,8 +68,6 @@ export default function ProfilePage() {
             height={150}
             className="rounded-full object-cover border-4 border-white shadow-xl w-full h-full hover:scale-105 transition-transform duration-300"
           />
-
-          {/* Edit Picture */}
           <label className="absolute -bottom-2 -right-2 bg-purple-500 text-white p-2 sm:p-2.5 rounded-full cursor-pointer hover:bg-purple-600 shadow-lg transition-all duration-300 hover:scale-110">
             <input
               type="file"
@@ -80,13 +78,9 @@ export default function ProfilePage() {
             <span className="text-xs sm:text-sm font-bold">✎</span>
           </label>
         </div>
-
-        {/* Username */}
         <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold mt-2 text-purple-900 text-center">
           {currentUser.username}
         </h1>
-
-        {/* Bio */}
         <div className="mt-4 text-center w-full z-10">
           {editingBio ? (
             <div className="flex flex-col items-center gap-3 w-full">

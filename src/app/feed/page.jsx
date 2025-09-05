@@ -145,7 +145,7 @@ export default function FeedPage() {
 
   return (
     <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat">
-      {/* Back Button */}
+      
       <button
         onClick={() => router.back()}
         className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"

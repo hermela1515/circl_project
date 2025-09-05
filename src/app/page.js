@@ -12,14 +12,14 @@ export default function Home() {
   }, []);
 
   const handleContinue = () => {
-    router.push("/login"); // go to login page
+    router.push("/login"); 
   };
 
   return (
     <main className="h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center">
-      {/* Overlay with flexbox centering */}
+      
       <div className="flex h-full w-full items-center justify-center bg-black/40 relative px-4">
-        {/* Logo + Title wrapper */}
+      
         <div className="relative flex flex-col items-center justify-center">
           <img
             src="/images/circle.png"
@@ -35,8 +35,6 @@ export default function Home() {
             Circl
           </h1>
         </div>
-
-        {/* Continue button */}
         <div className="absolute bottom-16 sm:bottom-20 md:bottom-24 left-1/2 transform -translate-x-1/2 w-full flex justify-center">
           <button
             onClick={handleContinue}

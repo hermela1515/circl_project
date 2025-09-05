@@ -41,7 +41,7 @@ export default function PostPage() {
 
   return (
     <main className="min-h-screen flex justify-center items-center bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat p-2 sm:p-4 relative">
-      {/* Back Button */}
+    
       <button
         onClick={() => router.back()}
         className="absolute top-4 left-4 z-10 bg-black/50 hover:bg-black/70 text-white p-2 sm:p-3 rounded-full transition-all duration-200 hover:scale-105"
@@ -54,12 +54,9 @@ export default function PostPage() {
         onSubmit={handleSubmit}
         className="bg-white/90 shadow-2xl rounded-xl sm:rounded-2xl p-4 sm:p-6 w-full max-w-sm sm:max-w-md md:max-w-lg backdrop-blur-md"
       >
-        {/* Title */}
         <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-center text-purple-900 font-serif">
-          ✨ Create a New Post
+          Create a New Post
         </h1>
-
-        {/* Upload section */}
         <label className="block mb-3 sm:mb-4">
           <span className="text-gray-700 font-semibold text-sm sm:text-base">Upload Image</span>
           <input
@@ -73,8 +70,6 @@ export default function PostPage() {
                        hover:file:bg-purple-200"
           />
         </label>
-
-        {/* Image Preview */}
         {image && (
           <div className="mb-3 sm:mb-4">
             <img
@@ -84,22 +79,18 @@ export default function PostPage() {
             />
           </div>
         )}
-
-        {/* Description */}
         <textarea
-          placeholder="📝 Write something about your post..."
+          placeholder=" Write something about your post..."
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full border border-gray-300 rounded-lg sm:rounded-xl p-2 sm:p-3 mb-3 sm:mb-4 text-gray-800 focus:ring-2 focus:ring-purple-400 focus:outline-none resize-none text-sm sm:text-base"
           rows="3"
         ></textarea>
-
-        {/* Post Button */}
         <button
           type="submit"
           className="w-full py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-purple-800 to-purple-500 text-white font-semibold shadow-lg hover:opacity-90 transition text-sm sm:text-base"
         >
-          🚀 Share Post
+          Share Post
         </button>
       </form>
     </main>
