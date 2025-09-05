@@ -143,7 +143,7 @@ export default function FeedPage() {
 
   return (
     <main className="min-h-screen w-full bg-[url('/images/bg.png')] bg-cover bg-center bg-no-repeat">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 sm:px-6 pt-4 gap-4">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center px-2 sm:px-4 md:px-6 pt-2 sm:pt-4 gap-2 sm:gap-4">
         <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto justify-between sm:justify-start">
           <div className="flex items-center gap-1 sm:gap-2">
             <Image
@@ -151,24 +151,24 @@ export default function FeedPage() {
               alt="Circl Logo"
               width={160}
               height={120}
-              className="object-contain w-28 sm:w-36 md:w-44"
+              className="object-contain w-20 sm:w-28 md:w-36 lg:w-44"
             />
-            <span className="text-2xl sm:text-3xl font-bold text-white drop-shadow-md -mt-1">
+            <span className="text-xl sm:text-2xl md:text-3xl font-bold text-white drop-shadow-md -mt-1">
               Circl
             </span>
           </div>
           <button
-            className="sm:hidden text-white text-2xl"
+            className="sm:hidden text-white text-xl sm:text-2xl p-1"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
           >
             ☰
           </button>
         </div>
-        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto ${isMenuOpen ? 'flex' : 'hidden'} sm:flex`}>
-          <nav className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 w-full sm:w-auto">
-            <Link href="/" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left">Home</Link>
-            <Link href="/notfication" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left">Notifications</Link>
-            <Link href="/post" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left"> Add Post</Link>
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto ${isMenuOpen ? 'flex' : 'hidden'} sm:flex`}>
+          <nav className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 md:gap-6 w-full sm:w-auto">
+            <Link href="/" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">Home</Link>
+            <Link href="/notfication" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1">Notifications</Link>
+            <Link href="/post" className="text-white font-medium hover:text-blue-300 transition w-full sm:w-auto text-left text-sm sm:text-base py-1"> Add Post</Link>
             
           </nav>
 
@@ -178,44 +178,44 @@ export default function FeedPage() {
               alt={currentUser.username}
               width={40}
               height={40}
-              className="rounded-full border-2 border-purple-500 shadow-lg w-10 h-10 sm:w-12 sm:h-12 object-cover"
+              className="rounded-full border-2 border-purple-500 shadow-lg w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 object-cover"
             />
           </Link>
         </div>
       </header>
-      <div className="max-w-3xl mx-auto mt-6 sm:mt-8 mb-6 px-4">
+      <div className="max-w-3xl mx-auto mt-4 sm:mt-6 md:mt-8 mb-4 sm:mb-6 px-2 sm:px-4">
         <div className="relative">
           <input
             type="text"
             placeholder="Search posts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 pl-10 py-2 sm:py-3 rounded-3xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/80 backdrop-blur-md shadow-md text-black text-sm sm:text-base"
+            className="w-full px-3 sm:px-4 pl-8 sm:pl-10 py-2 sm:py-3 rounded-2xl sm:rounded-3xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white/80 backdrop-blur-md shadow-md text-black text-xs sm:text-sm md:text-base"
           />
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+          <FaSearch className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm sm:text-base" />
         </div>
       </div>
-      <div className="flex flex-col gap-6 sm:gap-8 max-w-3xl mx-auto mt-4 sm:mt-6 px-4 pb-10">
+      <div className="flex flex-col gap-4 sm:gap-6 md:gap-8 max-w-3xl mx-auto mt-2 sm:mt-4 md:mt-6 px-2 sm:px-4 pb-8 sm:pb-10">
         {filteredPosts.length === 0 ? (
           <p className="text-center text-gray-200 italic mt-10">No posts found.</p>
         ) : (
           filteredPosts.map((post) => (
             <div
               key={post.id}
-              className="bg-white/90 backdrop-blur-xl rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] cursor-pointer"
+              className="bg-white/90 backdrop-blur-xl rounded-xl sm:rounded-2xl md:rounded-3xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.01] sm:hover:scale-[1.02] cursor-pointer"
               onClick={() => openPostModal(post)}
             >
               
-              <div className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-gray-200">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between gap-2 sm:gap-3 p-2 sm:p-3 md:p-4 border-b border-gray-200">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <Image
                     src={post.profilePic ?? "/images/default-profile.jpg"}
                     alt={post.username ?? "User"}
                     width={36}
                     height={36}
-                    className="rounded-full object-cover border border-purple-500 w-9 h-9 sm:w-10 sm:h-10"
+                    className="rounded-full object-cover border border-purple-500 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10"
                   />
-                  <span className="font-semibold text-purple-900 text-sm sm:text-base">
+                  <span className="font-semibold text-purple-900 text-xs sm:text-sm md:text-base">
                     {post.username ?? "User"}
                   </span>
                 </div>
@@ -226,14 +226,14 @@ export default function FeedPage() {
                       e.stopPropagation();
                       handleDeletePost(post.id);
                     }}
-                    className="text-red-600 hover:text-red-800 transition text-lg sm:text-xl ml-2"
+                    className="text-red-600 hover:text-red-800 transition text-base sm:text-lg md:text-xl ml-1 sm:ml-2"
                     title="Delete Post"
                   >
                     <FaTrash />
                   </button>
                 )}
               </div>
-              <div className="relative h-48 sm:h-64 md:h-72 w-full">
+              <div className="relative h-40 sm:h-48 md:h-64 lg:h-72 w-full">
                 <Image
                   src={post.image ?? "/images/sample.jpg"}
                   alt={post.title ?? "Post"}
@@ -241,20 +241,20 @@ export default function FeedPage() {
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               </div>
-              <div className="p-4 sm:p-5">
-                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 text-gray-900">
+              <div className="p-3 sm:p-4 md:p-5">
+                <h2 className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold mb-2 text-gray-900">
                   {post.title ?? ""}
                 </h2>
-                <p className="text-gray-700 mb-4 text-sm sm:text-base line-clamp-2">
+                <p className="text-gray-700 mb-3 sm:mb-4 text-xs sm:text-sm md:text-base line-clamp-2">
                   {post.description ?? ""}
                 </p>
-                <div className="flex items-center gap-4 sm:gap-6 mb-2">
+                <div className="flex items-center gap-3 sm:gap-4 md:gap-6 mb-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleLike(post.id);
                     }}
-                    className={`text-xl sm:text-2xl transition transform hover:scale-125 ${
+                    className={`text-lg sm:text-xl md:text-2xl transition transform hover:scale-125 ${
                       likedPosts[post.id]
                         ? "text-red-500"
                         : "text-gray-500 hover:text-red-500"
@@ -262,28 +262,28 @@ export default function FeedPage() {
                   >
                     {likedPosts[post.id] ? <FaHeart /> : <FaRegHeart />}
                   </button>
-                  <span className="text-gray-700 font-medium text-sm sm:text-base">{post.likes}</span>
+                  <span className="text-gray-700 font-medium text-xs sm:text-sm md:text-base">{post.likes}</span>
 
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleCommentInput(post.id);
                     }}
-                    className="text-xl sm:text-2xl text-gray-500 hover:text-blue-500 transition transform hover:scale-125"
+                    className="text-lg sm:text-xl md:text-2xl text-gray-500 hover:text-blue-500 transition transform hover:scale-125"
                   >
                     <FaComment />
                   </button>
-                  <span className="text-gray-700 font-medium text-sm sm:text-base">
+                  <span className="text-gray-700 font-medium text-xs sm:text-sm md:text-base">
                     {(post.comments || []).length}
                   </span>
                 </div>
 
                 {commentInputs[post.id] && (
-                  <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="mt-2 sm:mt-3" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="text"
                       placeholder="Write a comment..."
-                      className="w-full border rounded-2xl px-3 py-2 mb-2 text-black shadow-sm focus:ring-2 focus:ring-purple-500 text-sm sm:text-base"
+                      className="w-full border rounded-xl sm:rounded-2xl px-2 sm:px-3 py-1.5 sm:py-2 mb-2 text-black shadow-sm focus:ring-2 focus:ring-purple-500 text-xs sm:text-sm md:text-base"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           handleCommentSubmit(post.id, e.target.value);
@@ -295,9 +295,9 @@ export default function FeedPage() {
                 )}
 
                 {(post.comments || []).length > 0 && (
-                  <div className="mt-3 border-t pt-2 space-y-2">
+                  <div className="mt-2 sm:mt-3 border-t pt-2 space-y-1 sm:space-y-2">
                     {post.comments.slice(0, 2).map((comment, idx) => (
-                      <p key={idx} className="text-gray-800 text-sm sm:text-base">
+                      <p key={idx} className="text-gray-800 text-xs sm:text-sm md:text-base">
                         <span className="font-semibold text-purple-700">
                           {comment.user}:
                         </span>{" "}
@@ -305,7 +305,7 @@ export default function FeedPage() {
                       </p>
                     ))}
                     {(post.comments || []).length > 2 && (
-                      <p className="text-gray-500 text-sm">View {post.comments.length - 2} more comments</p>
+                      <p className="text-gray-500 text-xs sm:text-sm">View {post.comments.length - 2} more comments</p>
                     )}
                   </div>
                 )}
@@ -316,48 +316,48 @@ export default function FeedPage() {
       </div>
       {selectedPost && (
         <div 
-          className={`fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${isModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-2 sm:p-4 transition-opacity duration-300 ${isModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           onClick={closePostModal}
         >
           <div 
-            className={`bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-transform duration-300 ${isModalOpen ? 'scale-100' : 'scale-95'}`}
+            className={`bg-white rounded-xl sm:rounded-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto transition-transform duration-300 ${isModalOpen ? 'scale-100' : 'scale-95'}`}
             onClick={(e) => e.stopPropagation()}
           >
            
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b sticky top-0 bg-white z-10">
               <button 
                 onClick={closePostModal}
-                className="text-gray-500 hover:text-gray-700 text-xl"
+                className="text-gray-500 hover:text-gray-700 text-lg sm:text-xl"
               >
                 <FaArrowLeft />
               </button>
-              <h2 className="text-xl font-bold text-gray-900">Post Details</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Post Details</h2>
               <button 
                 onClick={closePostModal}
-                className="text-gray-500 hover:text-gray-700 text-xl"
+                className="text-gray-500 hover:text-gray-700 text-lg sm:text-xl"
               >
                 <FaTimes />
               </button>
             </div>
 
         
-            <div className="p-4">
-              <div className="flex items-center justify-between gap-3 p-3 border-b border-gray-200">
-                <div className="flex items-center gap-3">
+            <div className="p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 sm:gap-3 p-2 sm:p-3 border-b border-gray-200">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <Image
                     src={selectedPost.profilePic ?? "/images/default-profile.jpg"}
                     alt={selectedPost.username ?? "User"}
                     width={40}
                     height={40}
-                    className="rounded-full object-cover border border-purple-500 w-10 h-10"
+                    className="rounded-full object-cover border border-purple-500 w-8 h-8 sm:w-10 sm:h-10"
                   />
-                  <span className="font-semibold text-purple-900">
+                  <span className="font-semibold text-purple-900 text-sm sm:text-base">
                     {selectedPost.username ?? "User"}
                   </span>
                 </div>
               </div>
 
-              <div className="relative h-64 w-full mt-4">
+              <div className="relative h-48 sm:h-56 md:h-64 w-full mt-3 sm:mt-4">
                 <Image
                   src={selectedPost.image ?? "/images/sample.jpg"}
                   alt={selectedPost.title ?? "Post"}
@@ -366,16 +366,16 @@ export default function FeedPage() {
                 />
               </div>
 
-              <div className="p-4">
-                <h2 className="text-2xl font-bold mb-2 text-gray-900">
+              <div className="p-3 sm:p-4">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-2 text-gray-900">
                   {selectedPost.title ?? ""}
                 </h2>
-                <p className="text-gray-700 mb-4">{selectedPost.description ?? ""}</p>
+                <p className="text-gray-700 mb-3 sm:mb-4 text-sm sm:text-base">{selectedPost.description ?? ""}</p>
 
-                <div className="flex items-center gap-6 mb-4">
+                <div className="flex items-center gap-4 sm:gap-6 mb-3 sm:mb-4">
                   <button
                     onClick={() => handleLike(selectedPost.id)}
-                    className={`text-2xl transition transform hover:scale-125 ${
+                    className={`text-lg sm:text-xl md:text-2xl transition transform hover:scale-125 ${
                       likedPosts[selectedPost.id]
                         ? "text-red-500"
                         : "text-gray-500 hover:text-red-500"
@@ -383,25 +383,25 @@ export default function FeedPage() {
                   >
                     {likedPosts[selectedPost.id] ? <FaHeart /> : <FaRegHeart />}
                   </button>
-                  <span className="text-gray-700 font-medium">{selectedPost.likes}</span>
+                  <span className="text-gray-700 font-medium text-sm sm:text-base">{selectedPost.likes}</span>
 
                   <button
                     onClick={() => toggleCommentInput(selectedPost.id)}
-                    className="text-2xl text-gray-500 hover:text-blue-500 transition transform hover:scale-125"
+                    className="text-lg sm:text-xl md:text-2xl text-gray-500 hover:text-blue-500 transition transform hover:scale-125"
                   >
                     <FaComment />
                   </button>
-                  <span className="text-gray-700 font-medium">
+                  <span className="text-gray-700 font-medium text-sm sm:text-base">
                     {(selectedPost.comments || []).length}
                   </span>
                 </div>
 
                 {commentInputs[selectedPost.id] && (
-                  <div className="mt-3">
+                  <div className="mt-2 sm:mt-3">
                     <input
                       type="text"
                       placeholder="Write a comment..."
-                      className="w-full border rounded-2xl px-4 py-2 mb-2 text-black shadow-sm focus:ring-2 focus:ring-purple-500"
+                      className="w-full border rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 mb-2 text-black shadow-sm focus:ring-2 focus:ring-purple-500 text-sm sm:text-base"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           handleCommentSubmit(selectedPost.id, e.target.value);
@@ -413,11 +413,11 @@ export default function FeedPage() {
                 )}
 
                 {(selectedPost.comments || []).length > 0 && (
-                  <div className="mt-4 border-t pt-4 space-y-3">
-                    <h3 className="font-semibold text-gray-900">Comments</h3>
+                  <div className="mt-3 sm:mt-4 border-t pt-3 sm:pt-4 space-y-2 sm:space-y-3">
+                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Comments</h3>
                     {selectedPost.comments.map((comment, idx) => (
-                      <div key={idx} className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-gray-800">
+                      <div key={idx} className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+                        <p className="text-gray-800 text-sm sm:text-base">
                           <span className="font-semibold text-purple-700">
                             {comment.user}:
                           </span>{" "}
