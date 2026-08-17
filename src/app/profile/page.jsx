@@ -1,132 +1,1232 @@
+
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FaArrowLeft } from "react-icons/fa";
+import {
+  Fraunces,
+  Inter,
+  JetBrains_Mono,
+} from "next/font/google";
 
-export default function ProfilePage() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [editingBio, setEditingBio] = useState(false);
-  const [newBio, setNewBio] = useState("");
+import {
+  FaArrowLeft,
+  FaHeart,
+  FaComment,
+  FaUserPlus,
+  FaCheck,
+  FaBell,
+  FaSignOutAlt,
+} from "react-icons/fa";
+
+/* =========================================================
+   FONTS
+========================================================= */
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-display",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-body",
+});
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+});
+
+/* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000/api";
+
+/*
+  Backend root.
+
+  Example:
+  API_URL = http://localhost:5000/api
+
+  BACKEND_URL becomes:
+  http://localhost:5000
+*/
+
+const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
+
+/* =========================================================
+   ICONS
+========================================================= */
+
+const ICONS = {
+  like: {
+    icon: FaHeart,
+    color: "#FF5C7C",
+  },
+
+  comment: {
+    icon: FaComment,
+    color: "#9D8DF1",
+  },
+
+  follow: {
+    icon: FaUserPlus,
+    color: "#FFC145",
+  },
+};
+
+/* =========================================================
+   TABS
+========================================================= */
+
+const TABS = [
+  {
+    id: "all",
+    label: "All",
+  },
+  {
+    id: "like",
+    label: "Likes",
+  },
+  {
+    id: "comment",
+    label: "Comments",
+  },
+  {
+    id: "follow",
+    label: "Follows",
+  },
+];
+
+/* =========================================================
+   GET TOKEN
+========================================================= */
+
+function getToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return (
+    localStorage.getItem("token") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("accessToken")
+  );
+}
+
+/* =========================================================
+   IMAGE URL HELPER
+========================================================= */
+
+function getAvatarUrl(profilePic) {
+  if (!profilePic) {
+    return "/images/default-avatar.png";
+  }
+
+  /*
+   Already a complete URL
+   */
+
+  if (
+    profilePic.startsWith("http://") ||
+    profilePic.startsWith("https://") ||
+    profilePic.startsWith("data:")
+  ) {
+    return profilePic;
+  }
+
+  /*
+   Relative backend path.
+
+   Example:
+   /images/default-avatar.png
+
+   becomes:
+   http://localhost:5000/images/default-avatar.png
+   */
+
+  if (profilePic.startsWith("/")) {
+    return `${BACKEND_URL}${profilePic}`;
+  }
+
+  /*
+   In case database contains something like:
+   images/avatar.jpg
+   */
+
+  return `${BACKEND_URL}/${profilePic}`;
+}
+
+/* =========================================================
+   TIME FORMATTER
+========================================================= */
+
+function formatTimeAgo(dateValue) {
+  if (!dateValue) {
+    return "";
+  }
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const now = new Date();
+
+  const difference = Math.max(
+    0,
+    now.getTime() - date.getTime()
+  );
+
+  const seconds = Math.floor(
+    difference / 1000
+  );
+
+  const minutes = Math.floor(
+    seconds / 60
+  );
+
+  const hours = Math.floor(
+    minutes / 60
+  );
+
+  const days = Math.floor(
+    hours / 24
+  );
+
+  const weeks = Math.floor(
+    days / 7
+  );
+
+  if (seconds < 60) {
+    return "just now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  if (weeks < 4) {
+    return `${weeks}w ago`;
+  }
+
+  return date.toLocaleDateString();
+}
+
+/* =========================================================
+   NORMALIZE NOTIFICATION
+========================================================= */
+
+function normalizeNotification(
+  notification
+) {
+  const actor =
+    notification.actor ||
+    notification.sender ||
+    notification.from ||
+    {};
+
+  const actorId =
+    actor?._id ||
+    actor?.id ||
+    notification.actorId ||
+    notification.senderId ||
+    null;
+
+  const actorName =
+    actor?.username ||
+    actor?.name ||
+    notification.actorName ||
+    notification.username ||
+    "Someone";
+
+  /*
+   Get actor profile picture.
+   */
+
+  const rawAvatar =
+    actor?.profilePic ||
+    actor?.avatar ||
+    notification.avatar ||
+    null;
+
+  const avatar = getAvatarUrl(
+    rawAvatar
+  );
+
+  const type =
+    notification.type === "like" ||
+    notification.type === "comment" ||
+    notification.type === "follow"
+      ? notification.type
+      : "like";
+
+  let text = "interacted with you";
+
+  if (type === "like") {
+    text = "liked your post";
+  }
+
+  if (type === "comment") {
+    text = "commented on your post";
+  }
+
+  if (type === "follow") {
+    text = "started following you";
+  }
+
+  return {
+    id:
+      notification._id ||
+      notification.id ||
+      `${type}-${Date.now()}-${Math.random()}`,
+
+    type,
+
+    actor: actorName,
+
+    actorId,
+
+    avatar,
+
+    flag:
+      actor?.location?.flag ||
+      notification.flag ||
+      "",
+
+    text,
+
+    detail:
+      notification.commentText ||
+      notification.comment ||
+      notification.content ||
+      notification.postTitle ||
+      notification.detail ||
+      null,
+
+    postId:
+      notification.post?._id ||
+      notification.postId ||
+      null,
+
+    createdAt:
+      notification.createdAt ||
+      notification.date ||
+      notification.timestamp ||
+      null,
+
+    read: Boolean(
+      notification.read ||
+        notification.isRead
+    ),
+
+    group:
+      notification.group ||
+      "earlier",
+  };
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
+export default function NotificationPage() {
   const router = useRouter();
-  useEffect(() => {
-    const savedUser = JSON.parse(localStorage.getItem("currentUser"));
-    if (savedUser) {
-      setCurrentUser(savedUser);
-      setNewBio(savedUser.bio || "This is my bio. Click edit to change it.");
-    }
-  }, []);
 
-  if (!currentUser) {
+  const [
+    notifications,
+    setNotifications,
+  ] = useState([]);
+
+  const [
+    activeTab,
+    setActiveTab,
+  ] = useState("all");
+
+  const [
+    followedBack,
+    setFollowedBack,
+  ] = useState({});
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    markingAll,
+    setMarkingAll,
+  ] = useState(false);
+
+  const [
+    loggingOut,
+    setLoggingOut,
+  ] = useState(false);
+
+  /* =======================================================
+     LOAD NOTIFICATIONS
+  ======================================================= */
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const token = getToken();
+
+        if (!token) {
+          router.push("/login");
+          return;
+        }
+
+        const response = await fetch(
+          `${API_URL}/notifications`,
+          {
+            method: "GET",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type":
+                "application/json",
+            },
+
+            cache: "no-store",
+          }
+        );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          if (
+            response.status === 401 ||
+            response.status === 403
+          ) {
+            localStorage.removeItem(
+              "token"
+            );
+
+            localStorage.removeItem(
+              "authToken"
+            );
+
+            localStorage.removeItem(
+              "accessToken"
+            );
+
+            router.push("/login");
+
+            return;
+          }
+
+          throw new Error(
+            data.message ||
+              "Failed to load notifications"
+          );
+        }
+
+        const serverNotifications =
+          Array.isArray(
+            data.notifications
+          )
+            ? data.notifications
+            : [];
+
+        const normalized =
+          serverNotifications.map(
+            normalizeNotification
+          );
+
+        setNotifications(
+          normalized
+        );
+      } catch (err) {
+        console.error(
+          "Load notifications error:",
+          err
+        );
+
+        setError(
+          err.message ||
+            "Failed to load notifications."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotifications();
+  }, [router]);
+
+  /* =======================================================
+     LOGOUT
+  ======================================================= */
+
+  const handleLogout = () => {
+    try {
+      setLoggingOut(true);
+
+      /*
+       Remove every possible token
+       */
+
+      localStorage.removeItem(
+        "token"
+      );
+
+      localStorage.removeItem(
+        "authToken"
+      );
+
+      localStorage.removeItem(
+        "accessToken"
+      );
+
+      /*
+       Optional cleanup if your app
+       stores user information locally.
+       */
+
+      localStorage.removeItem(
+        "user"
+      );
+
+      localStorage.removeItem(
+        "currentUser"
+      );
+
+      /*
+       Send user to login.
+       */
+
+      router.replace("/login");
+    } catch (error) {
+      console.error(
+        "Logout error:",
+        error
+      );
+
+      setLoggingOut(false);
+    }
+  };
+
+  /* =======================================================
+     MARK ONE AS READ
+  ======================================================= */
+
+  const markAsRead = async (id) => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      setNotifications(
+        (previous) =>
+          previous.map(
+            (notification) =>
+              notification.id === id
+                ? {
+                    ...notification,
+                    read: true,
+                  }
+                : notification
+          )
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/notifications/${id}/read`,
+          {
+            method: "PUT",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
+
+      if (!response.ok) {
+        console.error(
+          "Failed to mark notification as read"
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Mark notification as read error:",
+        err
+      );
+    }
+  };
+
+  /* =======================================================
+     MARK ALL READ
+  ======================================================= */
+
+  const markAllRead = async () => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      setMarkingAll(true);
+
+      setNotifications(
+        (previous) =>
+          previous.map(
+            (notification) => ({
+              ...notification,
+              read: true,
+            })
+          )
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/notifications/read-all`,
+          {
+            method: "PUT",
+
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
+
+      if (!response.ok) {
+        console.error(
+          "Failed to mark all notifications as read"
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Mark all notifications error:",
+        err
+      );
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  /* =======================================================
+     FOLLOW BACK
+  ======================================================= */
+
+  const toggleFollowBack = async (
+    notification
+  ) => {
+    try {
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      if (!notification.actorId) {
+        return;
+      }
+
+      const currentlyFollowing =
+        Boolean(
+          followedBack[
+            notification.id
+          ]
+        );
+
+      setFollowedBack(
+        (previous) => ({
+          ...previous,
+
+          [notification.id]:
+            !currentlyFollowing,
+        })
+      );
+
+      const endpoint =
+        currentlyFollowing
+          ? `${API_URL}/users/${notification.actorId}/unfollow`
+          : `${API_URL}/users/${notification.actorId}/follow`;
+
+      const response =
+        await fetch(endpoint, {
+          method: "POST",
+
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type":
+              "application/json",
+          },
+        });
+
+      if (!response.ok) {
+        setFollowedBack(
+          (previous) => ({
+            ...previous,
+
+            [notification.id]:
+              currentlyFollowing,
+          })
+        );
+
+        const data =
+          await response.json();
+
+        console.error(
+          data.message ||
+            "Follow request failed"
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Follow back error:",
+        err
+      );
+    }
+  };
+
+  /* =======================================================
+     OPEN ACTOR PROFILE
+  ======================================================= */
+
+  const openProfile = (
+    notification
+  ) => {
+    if (!notification.actorId) {
+      return;
+    }
+
+    markAsRead(
+      notification.id
+    );
+
+    router.push(
+      `/profile/${notification.actorId}`
+    );
+  };
+
+  /* =======================================================
+     OPEN POST
+  ======================================================= */
+
+  const openPost = (
+    notification
+  ) => {
+    markAsRead(
+      notification.id
+    );
+
+    if (notification.postId) {
+      router.push(
+        `/feed?post=${notification.postId}`
+      );
+
+      return;
+    }
+
+    if (notification.actorId) {
+      router.push(
+        `/profile/${notification.actorId}`
+      );
+    }
+  };
+
+  /* =======================================================
+     UNREAD COUNT
+  ======================================================= */
+
+  const unreadCount = useMemo(
+    () => {
+      return notifications.filter(
+        (notification) =>
+          !notification.read
+      ).length;
+    },
+    [notifications]
+  );
+
+  /* =======================================================
+     FILTER
+  ======================================================= */
+
+  const filtered =
+    activeTab === "all"
+      ? notifications
+      : notifications.filter(
+          (notification) =>
+            notification.type ===
+            activeTab
+        );
+
+  /* =======================================================
+     GROUPS
+  ======================================================= */
+
+  const newItems =
+    filtered.filter(
+      (notification) => {
+        if (
+          notification.group ===
+          "new"
+        ) {
+          return true;
+        }
+
+        if (
+          !notification.createdAt
+        ) {
+          return !notification.read;
+        }
+
+        const date = new Date(
+          notification.createdAt
+        );
+
+        const difference =
+          Date.now() -
+          date.getTime();
+
+        return (
+          difference <=
+          24 *
+            60 *
+            60 *
+            1000
+        );
+      }
+    );
+
+  const earlierItems =
+    filtered.filter(
+      (notification) =>
+        !newItems.some(
+          (item) =>
+            item.id ===
+            notification.id
+        )
+    );
+
+  /* =======================================================
+     NOTIFICATION ROW
+  ======================================================= */
+
+  const NotificationRow = ({
+    notification,
+  }) => {
+    const meta =
+      ICONS[
+        notification.type
+      ] || ICONS.like;
+
+    const Icon = meta.icon;
+
+    const isFollow =
+      notification.type ===
+      "follow";
+
     return (
-      <main className="min-h-screen flex items-center justify-center bg-purple-100 p-4">
-        <p className="text-base sm:text-lg text-gray-700 text-center">
-          Please log in to view your profile.
-        </p>
+      <li
+        className={`flex items-center gap-3 p-3 sm:p-3.5 rounded-2xl transition ${
+          notification.read
+            ? "hover:bg-[#1E1A2E]"
+            : "bg-[#1E1A2E] hover:bg-[#262238]"
+        }`}
+      >
+        {/* AVATAR */}
+
+        <button
+          type="button"
+          onClick={() =>
+            openProfile(
+              notification
+            )
+          }
+          className="relative shrink-0 w-11 h-11"
+          title={`View ${notification.actor}'s profile`}
+        >
+          <span className="block w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] via-[#FFC145] to-[#9D8DF1]">
+            <Image
+              src={
+                notification.avatar ||
+                "/images/default-avatar.png"
+              }
+              alt={
+                notification.actor
+              }
+              width={44}
+              height={44}
+              unoptimized={
+                notification.avatar?.startsWith(
+                  "http"
+                ) ||
+                notification.avatar?.startsWith(
+                  "data:"
+                )
+              }
+              className="rounded-full object-cover w-full h-full border-2 border-[#15121F]"
+              onError={(event) => {
+                /*
+                 Prevent broken avatar icon.
+
+                 If the backend image fails,
+                 replace it with the local
+                 default avatar.
+                 */
+
+                event.currentTarget.src =
+                  "/images/default-avatar.png";
+              }}
+            />
+          </span>
+
+          <span
+            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#15121F]"
+            style={{
+              backgroundColor:
+                meta.color,
+            }}
+          >
+            <Icon className="text-[9px] text-[#15121F]" />
+          </span>
+        </button>
+
+        {/* CONTENT */}
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isFollow) {
+              markAsRead(
+                notification.id
+              );
+            } else {
+              openPost(
+                notification
+              );
+            }
+          }}
+          className="min-w-0 flex-1 text-left"
+        >
+          <p className="text-sm text-[#F5F1EA] leading-snug">
+            <span className="font-semibold">
+              {notification.actor}
+            </span>{" "}
+
+            <span className="text-[#ABA3C4]">
+              {notification.flag}
+            </span>{" "}
+
+            <span className="text-[#ABA3C4]">
+              {notification.text}
+            </span>
+          </p>
+
+          {notification.detail && (
+            <p className="text-xs text-[#ABA3C4] truncate mt-0.5">
+              {notification.detail}
+            </p>
+          )}
+
+          <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4]/70 mt-1">
+            {formatTimeAgo(
+              notification.createdAt
+            )}
+          </p>
+        </button>
+
+        {/* ACTION */}
+
+        {isFollow ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+
+              toggleFollowBack(
+                notification
+              );
+            }}
+            className={`shrink-0 [font-family:var(--font-body)] text-xs font-medium px-3.5 py-2 rounded-full transition ${
+              followedBack[
+                notification.id
+              ]
+                ? "bg-[#262238] text-[#ABA3C4] border border-white/10"
+                : "bg-[#FF5C7C] text-[#15121F]"
+            }`}
+          >
+            {followedBack[
+              notification.id
+            ]
+              ? "Following"
+              : "Follow back"}
+          </button>
+        ) : (
+          !notification.read && (
+            <span className="shrink-0 w-2 h-2 rounded-full bg-[#FF5C7C]" />
+          )
+        )}
+      </li>
+    );
+  };
+
+  /* =======================================================
+     LOADING
+  ======================================================= */
+
+  if (loading) {
+    return (
+      <main
+        className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] flex items-center justify-center`}
+      >
+        <div className="text-center">
+          <FaBell className="text-[#9D8DF1] text-2xl mx-auto mb-3 animate-pulse" />
+
+          <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4]">
+            loading notifications…
+          </p>
+        </div>
       </main>
     );
   }
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const updatedUser = { ...currentUser, profilePic: reader.result };
-        setCurrentUser(updatedUser);
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const saveBio = () => {
-    const updatedUser = { ...currentUser, bio: newBio };
-    setCurrentUser(updatedUser);
-    localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-    setEditingBio(false);
-  };
+  /* =======================================================
+     PAGE
+  ======================================================= */
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-br from-purple-100 via-purple-200 to-purple-300 p-4 sm:p-6 relative overflow-hidden">
-    
+    <main
+      className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] relative overflow-hidden`}
+    >
+      <style jsx>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
+
+      {/* BACKGROUND */}
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.06]">
+        <div className="absolute -top-40 -left-40 w-[480px] h-[480px] rounded-full border border-[#9D8DF1]" />
+
+        <div className="absolute -bottom-40 -right-40 w-[420px] h-[420px] rounded-full border border-[#FF5C7C]" />
+      </div>
+
+      {/* BACK BUTTON */}
+
       <button
-        onClick={() => router.back()}
-        className="absolute top-4 left-4 z-20 bg-white/30 backdrop-blur-md hover:bg-white/50 text-purple-900 p-2 sm:p-3 rounded-full transition-all duration-300 hover:scale-110 shadow-md"
-        title="Go Back"
+        onClick={() =>
+          router.back()
+        }
+        className="fixed top-4 left-4 z-20 bg-[#1E1A2E]/80 hover:bg-[#262238] border border-white/5 text-[#F5F1EA] p-2.5 sm:p-3 rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+        title="Go back"
       >
         <FaArrowLeft className="text-sm sm:text-base" />
       </button>
 
-      <div className="w-full max-w-xs sm:max-w-md md:max-w-lg mx-auto bg-white/60 backdrop-blur-xl shadow-lg rounded-3xl p-6 sm:p-8 flex flex-col items-center relative border border-purple-200">
-      
-        <div className="relative group w-[120px] h-[120px] sm:w-[150px] sm:h-[150px] z-10 mb-4">
-          <Image
-            src={currentUser.profilePic || "/images/default-avatar.png"}
-            alt={currentUser.username}
-            width={150}
-            height={150}
-            className="rounded-full object-cover border-4 border-white shadow-xl w-full h-full hover:scale-105 transition-transform duration-300"
-          />
-          <label className="absolute -bottom-2 -right-2 bg-purple-500 text-white p-2 sm:p-2.5 rounded-full cursor-pointer hover:bg-purple-600 shadow-lg transition-all duration-300 hover:scale-110">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-            <span className="text-xs sm:text-sm font-bold">✎</span>
-          </label>
+      {/* CONTENT */}
+
+      <div className="relative z-10 max-w-xl mx-auto pt-16 sm:pt-20 px-4 sm:px-6 pb-16">
+
+        {/* HEADER */}
+
+        <div className="flex items-start justify-between gap-4 mb-1">
+
+          <div>
+            <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl font-semibold text-[#F5F1EA]">
+              Notifications
+            </h1>
+
+            <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4] mt-1">
+              activity from your circle
+            </p>
+          </div>
+
+          {/* LOGOUT */}
+
+          <button
+            type="button"
+            onClick={
+              handleLogout
+            }
+            disabled={
+              loggingOut
+            }
+            className="shrink-0 flex items-center gap-2 [font-family:var(--font-mono)] text-[11px] px-3.5 py-2 rounded-full bg-[#1E1A2E] border border-[#FF5C7C]/30 text-[#FF8DA3] hover:bg-[#FF5C7C] hover:text-[#15121F] transition disabled:opacity-50"
+          >
+            <FaSignOutAlt className="text-[10px]" />
+
+            {loggingOut
+              ? "logging out..."
+              : "Logout"}
+          </button>
+
         </div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold mt-2 text-purple-900 text-center">
-          {currentUser.username}
-        </h1>
-        <div className="mt-4 text-center w-full z-10">
-          {editingBio ? (
-            <div className="flex flex-col items-center gap-3 w-full">
-              <textarea
-                value={newBio}
-                onChange={(e) => setNewBio(e.target.value)}
-                rows={3}
-                className="w-full text-sm md:text-base text-gray-800 bg-white border-2 border-purple-300 rounded-xl p-3 shadow-md focus:ring-2 focus:ring-purple-400 focus:border-purple-400 transition-all resize-none"
-                placeholder="Tell us about yourself..."
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={saveBio}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-md text-sm font-semibold"
-                >
-                  Save Bio
-                </button>
-                <button
-                  onClick={() => setEditingBio(false)}
-                  className="px-4 py-2 bg-purple-200 text-purple-900 rounded-xl hover:bg-purple-300 transition-all shadow-md text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2">
-              <div className="bg-white/70 rounded-xl p-3 w-full border border-purple-200 shadow-sm">
-                <p className="text-gray-800 italic text-sm md:text-base break-words leading-relaxed">
-                  {currentUser.bio || "No bio yet. Click edit to add one!"}
-                </p>
-              </div>
+
+        {/* ERROR */}
+
+        {error && (
+          <div className="mt-5 bg-[#1E1A2E] border border-[#FF5C7C]/30 rounded-2xl px-4 py-3">
+            <p className="text-[#FF8DA3] text-xs">
+              {error}
+            </p>
+
+            <p className="text-[#ABA3C4] text-xs mt-1">
+              Make sure your backend has the
+              notifications routes enabled.
+            </p>
+          </div>
+        )}
+
+        {/* TABS */}
+
+        <div className="no-scrollbar flex gap-2 overflow-x-auto mt-5 mb-6">
+          {TABS.map(
+            (tab) => (
               <button
-                onClick={() => {
-                  setEditingBio(true);
-                  setNewBio(currentUser.bio || "");
-                }}
-                className="bg-purple-200 text-purple-900 hover:bg-purple-300 px-4 py-2 rounded-lg transition-all text-sm md:text-base font-medium border border-purple-300"
+                key={tab.id}
+                type="button"
+                onClick={() =>
+                  setActiveTab(
+                    tab.id
+                  )
+                }
+                className={`shrink-0 [font-family:var(--font-mono)] text-xs px-4 py-2 rounded-full border transition ${
+                  activeTab ===
+                  tab.id
+                    ? "bg-[#FF5C7C] border-[#FF5C7C] text-[#15121F] font-medium"
+                    : "bg-[#1E1A2E] border-white/5 text-[#ABA3C4] hover:border-white/20"
+                }`}
               >
-                ✏️ Edit Bio
+                {tab.label}
               </button>
-            </div>
+            )
           )}
         </div>
+
+        {/* EMPTY */}
+
+        {filtered.length ===
+        0 ? (
+          <div className="text-center py-16">
+
+            <span className="flex items-center justify-center w-12 h-12 rounded-full bg-[#1E1A2E] border border-white/5 mx-auto mb-4">
+              <FaBell className="text-[#9D8DF1]" />
+            </span>
+
+            <p className="text-[#ABA3C4] text-sm">
+              Nothing here yet.
+            </p>
+
+            <p className="text-[#ABA3C4]/60 text-xs mt-1">
+              New activity will show up as it happens.
+            </p>
+
+          </div>
+        ) : (
+          <div className="space-y-6">
+
+            {/* NEW */}
+
+            {newItems.length >
+              0 && (
+                <div>
+
+                  <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mb-2 px-1">
+                    New
+                  </p>
+
+                  <ul className="space-y-1">
+                    {newItems.map(
+                      (
+                        notification
+                      ) => (
+                        <NotificationRow
+                          key={
+                            notification.id
+                          }
+                          notification={
+                            notification
+                          }
+                        />
+                      )
+                    )}
+                  </ul>
+
+                </div>
+              )}
+
+            {/* EARLIER */}
+
+            {earlierItems.length >
+              0 && (
+                <div>
+
+                  <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mb-2 px-1">
+                    Earlier
+                  </p>
+
+                  <ul className="space-y-1">
+                    {earlierItems.map(
+                      (
+                        notification
+                      ) => (
+                        <NotificationRow
+                          key={
+                            notification.id
+                          }
+                          notification={
+                            notification
+                          }
+                        />
+                      )
+                    )}
+                  </ul>
+
+                </div>
+              )}
+
+          </div>
+        )}
+
       </div>
     </main>
   );
 }
+

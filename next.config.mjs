@@ -1,8 +1,10 @@
-// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["picsum.photos", "randomuser.me"], // ✅ allow both sources
+    remotePatterns: [
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "randomuser.me" },
+    ],
   },
 };
 
