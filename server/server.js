@@ -1,20 +1,12 @@
-
 // =========================================================
 // LOAD ENVIRONMENT VARIABLES FIRST
 // =========================================================
-// IMPORTANT:
-// dotenv must be loaded BEFORE importing routes/controllers
-// that use process.env (especially the mailer).
 
 require("dotenv").config();
 
-const dns = require("dns");
-
-// Use Google DNS to help with MongoDB Atlas DNS resolution
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
-
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const connectDB = require("./config/db");
 
@@ -27,6 +19,7 @@ const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const testEmailRoutes = require("./routes/testEmailRoutes");
+const messageRoutes = require("./routes/messageRoutes");
 
 // =========================================================
 // APP
@@ -67,12 +60,6 @@ console.log(
 console.log("========================================");
 
 // =========================================================
-// DATABASE
-// =========================================================
-
-connectDB();
-
-// =========================================================
 // CORS
 // =========================================================
 
@@ -83,24 +70,43 @@ const allowedOrigins = [
 
 // Add deployed frontend URL from .env
 if (process.env.CLIENT_URL) {
-  allowedOrigins.push(
-    process.env.CLIENT_URL
-  );
+  if (
+    !allowedOrigins.includes(
+      process.env.CLIENT_URL
+    )
+  ) {
+    allowedOrigins.push(
+      process.env.CLIENT_URL
+    );
+  }
 }
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: function (
+      origin,
+      callback
+    ) {
       // Allow requests with no origin
       // Example: Postman, Thunder Client,
       // server-to-server requests
 
       if (!origin) {
-        return callback(null, true);
+        return callback(
+          null,
+          true
+        );
       }
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
+      if (
+        allowedOrigins.includes(
+          origin
+        )
+      ) {
+        return callback(
+          null,
+          true
+        );
       }
 
       console.log(
@@ -151,16 +157,42 @@ app.use(
 );
 
 // =========================================================
+// PROFILE IMAGE UPLOADS
+// =========================================================
+//
+// Uploaded profile pictures are stored in:
+//
+// server/uploads/profile-pictures/
+//
+// This makes them accessible through:
+//
+// http://localhost:5000/uploads/profile-pictures/filename.jpg
+//
+// =========================================================
+
+app.use(
+  "/uploads",
+  express.static(
+    path.join(
+      __dirname,
+      "uploads"
+    )
+  )
+);
+
+// =========================================================
 // REQUEST LOGGER
 // =========================================================
 
-app.use((req, res, next) => {
-  console.log(
-    `${req.method} ${req.originalUrl}`
-  );
+app.use(
+  (req, res, next) => {
+    console.log(
+      `${req.method} ${req.originalUrl}`
+    );
 
-  next();
-});
+    next();
+  }
+);
 
 // =========================================================
 // HEALTH CHECK
@@ -169,7 +201,8 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Circl API is running",
+    message:
+      "Circl API is running",
   });
 });
 
@@ -180,7 +213,8 @@ app.get("/", (req, res) => {
 app.get("/api", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "Circl API is working",
+    message:
+      "Circl API is working",
     version: "1.0.0",
   });
 });
@@ -193,6 +227,7 @@ app.get("/api", (req, res) => {
 // GET  /api/auth/verify-email
 // POST /api/auth/login
 //
+// =========================================================
 
 app.use(
   "/api/auth",
@@ -207,6 +242,7 @@ app.use(
 // PUT /api/users/me
 // GET /api/users/:id
 //
+// =========================================================
 
 app.use(
   "/api/users",
@@ -221,6 +257,7 @@ app.use(
 // POST   /api/posts
 // etc.
 //
+// =========================================================
 
 app.use(
   "/api/posts",
@@ -236,10 +273,28 @@ app.use(
 // PATCH  /api/notifications/read-all
 // etc.
 //
+// =========================================================
 
 app.use(
   "/api/notifications",
   notificationRoutes
+);
+
+// =========================================================
+// MESSAGING ROUTES
+// =========================================================
+//
+// GET    /api/messages/conversations
+// GET    /api/messages/conversations/:conversationId
+// POST   /api/messages
+// PATCH  /api/messages/conversations/:conversationId/read
+// DELETE /api/messages/conversations/:conversationId
+//
+// =========================================================
+
+app.use(
+  "/api/messages",
+  messageRoutes
 );
 
 // =========================================================
@@ -248,6 +303,7 @@ app.use(
 //
 // Used only for testing the Gmail/Nodemailer setup.
 //
+// =========================================================
 
 app.use(
   "/api/test-email",
@@ -257,24 +313,32 @@ app.use(
 // =========================================================
 // 404 HANDLER
 // =========================================================
+//
 // IMPORTANT:
 // This MUST come AFTER all API routes.
-//
+// =========================================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message:
-      `Route ${req.method} ${req.originalUrl} not found`,
-  });
-});
+app.use(
+  (req, res) => {
+    res.status(404).json({
+      success: false,
+      message:
+        `Route ${req.method} ${req.originalUrl} not found`,
+    });
+  }
+);
 
 // =========================================================
 // GLOBAL ERROR HANDLER
 // =========================================================
 
 app.use(
-  (err, req, res, next) => {
+  (
+    err,
+    req,
+    res,
+    next
+  ) => {
     console.error(
       "========================================"
     );
@@ -294,11 +358,46 @@ app.use(
     // -----------------------------------------------------
 
     if (
-      err.message?.startsWith("CORS:")
+      err.message?.startsWith(
+        "CORS:"
+      )
     ) {
       return res.status(403).json({
         success: false,
-        message: err.message,
+        message:
+          err.message,
+      });
+    }
+
+    // -----------------------------------------------------
+    // MULTER FILE SIZE ERROR
+    // -----------------------------------------------------
+
+    if (
+      err.code ===
+      "LIMIT_FILE_SIZE"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Profile picture must be smaller than 5MB.",
+      });
+    }
+
+    // -----------------------------------------------------
+    // MULTER FILE TYPE ERROR
+    // -----------------------------------------------------
+
+    if (
+      err.message &&
+      err.message.includes(
+        "Only JPG"
+      )
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          err.message,
       });
     }
 
@@ -318,27 +417,73 @@ app.use(
 );
 
 // =========================================================
-// SERVER
+// SERVER STARTUP
 // =========================================================
 
 const PORT =
   process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(
-    "========================================"
-  );
+const startServer =
+  async () => {
+    try {
+      // ---------------------------------------------------
+      // CONNECT TO MONGODB FIRST
+      // ---------------------------------------------------
 
-  console.log(
-    `Circl server running on port ${PORT}`
-  );
+      await connectDB();
 
-  console.log(
-    `http://localhost:${PORT}`
-  );
+      // ---------------------------------------------------
+      // START EXPRESS SERVER
+      // ---------------------------------------------------
 
-  console.log(
-    "========================================"
-  );
-});
+      app.listen(
+        PORT,
+        () => {
+          console.log(
+            "========================================"
+          );
 
+          console.log(
+            `Circl server running on port ${PORT}`
+          );
+
+          console.log(
+            `http://localhost:${PORT}`
+          );
+
+          console.log(
+            "Profile uploads:",
+            `http://localhost:${PORT}/uploads`
+          );
+
+          console.log(
+            "========================================"
+          );
+        }
+      );
+    } catch (error) {
+      console.error(
+        "========================================"
+      );
+
+      console.error(
+        "❌ CIRCL SERVER FAILED TO START"
+      );
+
+      console.error(
+        error.message
+      );
+
+      console.error(
+        "========================================"
+      );
+
+      process.exit(1);
+    }
+  };
+
+// =========================================================
+// START CIRCL
+// =========================================================
+
+startServer();

@@ -1,139 +1,176 @@
-
 const Notification = require("../models/Notification");
 
-/*
-=========================================================
-GET MY NOTIFICATIONS
-GET /api/notifications
-=========================================================
-*/
+// =====================================================
+// GET NOTIFICATIONS
+// GET /api/notifications
+// =====================================================
 
-const getNotifications = async (req, res) => {
+const getNotifications = async (
+  req,
+  res
+) => {
   try {
+    const userId =
+      req.user?._id || req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Authentication required",
+      });
+    }
+
     const notifications =
       await Notification.find({
-        recipient: req.user._id,
+        recipient: userId,
       })
         .populate(
           "actor",
-          "username profilePic"
+          "username name email profilePic"
         )
         .populate(
           "post",
-          "title content image"
+          "title image"
         )
         .sort({
           createdAt: -1,
         });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       notifications,
     });
   } catch (error) {
     console.error(
-      "Get notifications error:",
+      "GET NOTIFICATIONS ERROR:",
       error
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message:
-        "Failed to load notifications",
+        "Failed to fetch notifications",
+      error: error.message,
     });
   }
 };
 
-/*
-=========================================================
-MARK ONE NOTIFICATION AS READ
-PUT /api/notifications/:id/read
-=========================================================
-*/
+// =====================================================
+// MARK ONE NOTIFICATION AS READ
+// PUT /api/notifications/:id/read
+// =====================================================
 
-const markAsRead = async (req, res) => {
-  try {
-    const notification =
-      await Notification.findOneAndUpdate(
+const markNotificationAsRead =
+  async (req, res) => {
+    try {
+      const userId =
+        req.user?._id || req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Authentication required",
+        });
+      }
+
+      const notification =
+        await Notification.findOneAndUpdate(
+          {
+            _id: req.params.id,
+            recipient: userId,
+          },
+          {
+            read: true,
+          },
+          {
+            new: true,
+          }
+        );
+
+      if (!notification) {
+        return res.status(404).json({
+          success: false,
+          message:
+            "Notification not found",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Notification marked as read",
+        notification,
+      });
+    } catch (error) {
+      console.error(
+        "MARK NOTIFICATION READ ERROR:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Failed to mark notification as read",
+        error: error.message,
+      });
+    }
+  };
+
+// =====================================================
+// MARK ALL NOTIFICATIONS AS READ
+// PUT /api/notifications/read-all
+// =====================================================
+
+const markAllNotificationsAsRead =
+  async (req, res) => {
+    try {
+      const userId =
+        req.user?._id || req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message:
+            "Authentication required",
+        });
+      }
+
+      await Notification.updateMany(
         {
-          _id: req.params.id,
-          recipient: req.user._id,
+          recipient: userId,
+          read: false,
         },
         {
-          read: true,
-        },
-        {
-          new: true,
+          $set: {
+            read: true,
+          },
         }
       );
 
-    if (!notification) {
-      return res.status(404).json({
+      return res.status(200).json({
+        success: true,
+        message:
+          "All notifications marked as read",
+      });
+    } catch (error) {
+      console.error(
+        "MARK ALL NOTIFICATIONS ERROR:",
+        error
+      );
+
+      return res.status(500).json({
         success: false,
         message:
-          "Notification not found",
+          "Failed to mark all notifications as read",
+        error: error.message,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      notification,
-    });
-  } catch (error) {
-    console.error(
-      "Mark notification read error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Failed to mark notification as read",
-    });
-  }
-};
-
-/*
-=========================================================
-MARK ALL NOTIFICATIONS AS READ
-PUT /api/notifications/read-all
-=========================================================
-*/
-
-const markAllAsRead = async (req, res) => {
-  try {
-    await Notification.updateMany(
-      {
-        recipient: req.user._id,
-        read: false,
-      },
-      {
-        read: true,
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      message:
-        "All notifications marked as read",
-    });
-  } catch (error) {
-    console.error(
-      "Mark all notifications error:",
-      error
-    );
-
-    res.status(500).json({
-      success: false,
-      message:
-        "Failed to mark notifications as read",
-    });
-  }
-};
+  };
 
 module.exports = {
   getNotifications,
-  markAsRead,
-  markAllAsRead,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 };
-

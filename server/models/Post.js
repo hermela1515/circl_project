@@ -1,4 +1,3 @@
-
 const mongoose = require("mongoose");
 
 const commentSchema = new mongoose.Schema(
@@ -80,5 +79,7 @@ const postSchema = new mongoose.Schema(
   }
 );
 
-module.exports = mongoose.model("Post", postSchema);
-
+module.exports = mongoose.model(
+  "Post",
+  postSchema
+);

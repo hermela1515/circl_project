@@ -15,6 +15,7 @@ import {
   FaSearch,
   FaTimes,
   FaArrowLeft,
+  FaEnvelope,
 } from "react-icons/fa";
 
 const fraunces = Fraunces({
@@ -35,9 +36,133 @@ const mono = JetBrains_Mono({
   variable: "--font-mono",
 });
 
+/* ============================================================
+   API URL
+============================================================ */
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5000/api";
+
+/* ============================================================
+   BACKEND ORIGIN
+============================================================ */
+
+/*
+  API_URL:
+  http://localhost:5000/api
+
+  BACKEND_ORIGIN:
+  http://localhost:5000
+
+  This is important because profile pictures are often returned
+  by the backend as relative paths such as:
+
+  /uploads/profilePics/image.jpg
+  /images/profile.jpg
+*/
+
+const BACKEND_ORIGIN = API_URL.replace(/\/api\/?$/, "");
+
+/* ============================================================
+   PROFILE IMAGE URL
+============================================================ */
+
+function getProfileImageUrl(src) {
+  const fallback = "/images/default-profile.jpg";
+
+  if (!src) {
+    return fallback;
+  }
+
+  if (typeof src !== "string") {
+    return fallback;
+  }
+
+  const value = src.trim();
+
+  if (!value) {
+    return fallback;
+  }
+
+  /*
+    Full external URL
+
+    Example:
+    https://res.cloudinary.com/...
+  */
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  /*
+    Data URL
+  */
+
+  if (value.startsWith("data:")) {
+    return value;
+  }
+
+  /*
+    Blob URL
+  */
+
+  if (value.startsWith("blob:")) {
+    return value;
+  }
+
+  /*
+    Protocol-relative URL
+
+    Example:
+    //res.cloudinary.com/...
+  */
+
+  if (value.startsWith("//")) {
+    return `https:${value}`;
+  }
+
+  /*
+    Relative backend path
+
+    Example:
+    /uploads/profilePics/abc.jpg
+
+    becomes:
+    http://localhost:5000/uploads/profilePics/abc.jpg
+  */
+
+  if (value.startsWith("/")) {
+    return `${BACKEND_ORIGIN}${value}`;
+  }
+
+  /*
+    Relative path without slash
+
+    Example:
+    uploads/profilePics/abc.jpg
+
+    becomes:
+    http://localhost:5000/uploads/profilePics/abc.jpg
+  */
+
+  return `${BACKEND_ORIGIN}/${value}`;
+}
+
+/* ============================================================
+   API DEBUG
+============================================================ */
+
+console.log("========================================");
+console.log("CIRCL FEED API");
+console.log("API_URL:", API_URL);
+console.log("BACKEND_ORIGIN:", BACKEND_ORIGIN);
+console.log("POSTS URL:", `${API_URL}/posts`);
+console.log("========================================");
 
 /* ============================================================
    POST IMAGE
@@ -55,6 +180,9 @@ function PostImage({ src, alt }) {
       src={src}
       alt={alt}
       className="absolute inset-0 w-full h-full object-cover"
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
     />
   );
 }
@@ -64,7 +192,9 @@ function PostImage({ src, alt }) {
 ============================================================ */
 
 function getToken() {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") {
+    return null;
+  }
 
   return (
     localStorage.getItem("token") ||
@@ -75,15 +205,6 @@ function getToken() {
 
 /* ============================================================
    NORMALIZE BACKEND POST
-
-   IMPORTANT:
-   Your backend returns the user as:
-
-   post.author.username
-   post.author.profilePic
-   post.author._id
-
-   NOT post.user
 ============================================================ */
 
 function normalizePost(post) {
@@ -95,36 +216,74 @@ function normalizePost(post) {
     ? post.comments
     : [];
 
-  const author = post.author || post.user || null;
+  const author =
+    post.author ||
+    post.user ||
+    null;
 
   const username =
     author?.username ||
     post.username ||
+    author?.name ||
     "User";
 
-  const profilePic =
+  /*
+    IMPORTANT:
+
+    We check every possible profile picture field.
+  */
+
+  const rawProfilePic =
     author?.profilePic ||
+    author?.profilePicture ||
+    author?.avatar ||
+    author?.image ||
     post.profilePic ||
-    "/images/default-profile.jpg";
+    post.profilePicture ||
+    post.avatar ||
+    "";
+
+  /*
+    Convert the backend image path to a usable URL.
+  */
+
+  const profilePic =
+    getProfileImageUrl(rawProfilePic);
 
   const userId =
     author?._id ||
     author?.id ||
     post.userId ||
-    post.user ||
+    (typeof post.user === "string"
+      ? post.user
+      : null) ||
     null;
 
-  const country = post.country || "";
-  const flag = post.flag || "";
+  const country =
+    post.country ||
+    "";
+
+  const flag =
+    post.flag ||
+    "";
 
   return {
-    id: post._id || post.id,
+    id:
+      post._id ||
+      post.id,
 
-    title: post.title || "",
+    title:
+      post.title ||
+      "",
 
-    description: post.description || "",
+    description:
+      post.description ||
+      "",
 
-    image: post.image || "",
+    image:
+      post.image ||
+      post.imageUrl ||
+      "",
 
     username,
 
@@ -140,42 +299,63 @@ function normalizePost(post) {
           }
         : null,
 
-    likes: likesArray.length,
+    likes:
+      likesArray.length,
 
-    likeIds: likesArray.map((id) =>
-      id.toString()
-    ),
+    likeIds:
+      likesArray.map((id) =>
+        id?.toString()
+      ),
 
-    comments: commentsArray.map((comment) => {
-      const commentUser =
-        comment.user || null;
+    comments:
+      commentsArray.map((comment) => {
+        const commentUser =
+          typeof comment.user === "object"
+            ? comment.user
+            : null;
 
-      return {
-        id:
-          comment._id ||
-          Math.random().toString(),
-
-        userId:
-          commentUser?._id ||
-          commentUser?.id ||
-          null,
-
-        user:
-          commentUser?.username ||
-          comment.username ||
-          "User",
-
-        profilePic:
+        const commentRawProfilePic =
           commentUser?.profilePic ||
-          "/images/default-profile.jpg",
+          commentUser?.profilePicture ||
+          commentUser?.avatar ||
+          commentUser?.image ||
+          comment.profilePic ||
+          comment.profilePicture ||
+          "";
 
-        text: comment.text || "",
-      };
-    }),
+        return {
+          id:
+            comment._id ||
+            Math.random().toString(),
+
+          userId:
+            commentUser?._id ||
+            commentUser?.id ||
+            (typeof comment.user === "string"
+              ? comment.user
+              : null) ||
+            null,
+
+          user:
+            commentUser?.username ||
+            comment.username ||
+            "User",
+
+          profilePic:
+            getProfileImageUrl(
+              commentRawProfilePic
+            ),
+
+          text:
+            comment.text ||
+            "",
+        };
+      }),
 
     fromLocal: false,
 
-    createdAt: post.createdAt,
+    createdAt:
+      post.createdAt,
   };
 }
 
@@ -186,11 +366,14 @@ function normalizePost(post) {
 export default function FeedPage() {
   const router = useRouter();
 
-  const searchInputRef = useRef(null);
+  const searchInputRef =
+    useRef(null);
 
-  const [posts, setPosts] = useState([]);
+  const [posts, setPosts] =
+    useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
   const [searchQuery, setSearchQuery] =
     useState("");
@@ -222,19 +405,15 @@ export default function FeedPage() {
   const [currentUser, setCurrentUser] =
     useState(null);
 
+  const [followLoading, setFollowLoading] =
+    useState(false);
+
   const [error, setError] =
     useState("");
 
   /* ============================================================
      LOAD CURRENT USER + POSTS
-
-     IMPORTANT:
-     This uses ONE fixed dependency array.
-
-     This prevents:
-     "The final argument passed to useEffect changed size
-      between renders."
-============================================================ */
+  ============================================================ */
 
   useEffect(() => {
     let isMounted = true;
@@ -257,21 +436,127 @@ export default function FeedPage() {
             );
 
           if (saved) {
-            savedUser = JSON.parse(saved);
+            savedUser =
+              JSON.parse(saved);
           }
-        } catch (error) {
+        } catch (userError) {
           console.error(
             "Failed to read current user:",
-            error
+            userError
           );
         }
 
+        /*
+          Normalize current user's profile picture immediately.
+        */
+
+        if (savedUser) {
+          savedUser = {
+            ...savedUser,
+            profilePic:
+              getProfileImageUrl(
+                savedUser.profilePic ||
+                  savedUser.profilePicture ||
+                  savedUser.avatar ||
+                  savedUser.image
+              ),
+          };
+        }
+
         if (isMounted) {
-          setCurrentUser(savedUser);
+          setCurrentUser(
+            savedUser
+          );
         }
 
         /* -------------------------------------------------------
-           PROFILE FILTER FROM URL
+           REFRESH CURRENT USER FROM BACKEND
+        ------------------------------------------------------- */
+
+        const token = getToken();
+
+        if (token) {
+          try {
+            const meResponse =
+              await fetch(
+                `${API_URL}/users/me`,
+                {
+                  method: "GET",
+                  cache: "no-store",
+                  headers: {
+                    Authorization:
+                      `Bearer ${token}`,
+                  },
+                }
+              );
+
+            const meData =
+              await meResponse.json();
+
+            if (
+              meResponse.ok &&
+              meData?.user
+            ) {
+              const refreshedUser = {
+                ...meData.user,
+
+                profilePic:
+                  getProfileImageUrl(
+                    meData.user.profilePic ||
+                      meData.user.profilePicture ||
+                      meData.user.avatar ||
+                      meData.user.image
+                  ),
+              };
+
+              if (isMounted) {
+                setCurrentUser(
+                  refreshedUser
+                );
+              }
+
+              savedUser =
+                refreshedUser;
+
+              try {
+                localStorage.setItem(
+                  "currentUser",
+                  JSON.stringify(
+                    refreshedUser
+                  )
+                );
+              } catch (storageError) {
+                console.error(
+                  "Failed to save refreshed current user:",
+                  storageError
+                );
+              }
+            } else if (
+              meResponse.status === 401 ||
+              meResponse.status === 403
+            ) {
+              localStorage.removeItem(
+                "token"
+              );
+
+              localStorage.removeItem(
+                "authToken"
+              );
+
+              localStorage.removeItem(
+                "accessToken"
+              );
+            }
+          } catch (meError) {
+            console.error(
+              "Failed to refresh current user:",
+              meError
+            );
+          }
+        }
+
+        /* -------------------------------------------------------
+           PROFILE FILTER
         ------------------------------------------------------- */
 
         const params =
@@ -292,37 +577,144 @@ export default function FeedPage() {
            FETCH POSTS
         ------------------------------------------------------- */
 
-        const response = await fetch(
-          `${API_URL}/posts`,
-          {
-            method: "GET",
-            cache: "no-store",
-          }
+        const postsUrl =
+          `${API_URL}/posts`;
+
+        console.log(
+          "========================================"
         );
 
-        const data =
-          await response.json();
+        console.log(
+          "Fetching posts from:"
+        );
 
-        if (!response.ok) {
+        console.log(
+          postsUrl
+        );
+
+        console.log(
+          "========================================"
+        );
+
+        const response =
+          await fetch(
+            postsUrl,
+            {
+              method: "GET",
+              cache: "no-store",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+            }
+          );
+
+        console.log(
+          "Posts response status:",
+          response.status
+        );
+
+        let data = null;
+
+        try {
+          data =
+            await response.json();
+        } catch (jsonError) {
+          console.error(
+            "Failed to parse posts response:",
+            jsonError
+          );
+
           throw new Error(
-            data.message ||
-              "Failed to fetch posts"
+            "Server returned an invalid response."
           );
         }
 
-        const backendPosts =
-          Array.isArray(data.posts)
-            ? data.posts
-            : [];
+        console.log(
+          "Posts response:",
+          data
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              data?.error ||
+              `Failed to fetch posts (${response.status})`
+          );
+        }
+
+        /* -------------------------------------------------------
+           SUPPORT MULTIPLE RESPONSE FORMATS
+        ------------------------------------------------------- */
+
+        let backendPosts = [];
+
+        if (
+          Array.isArray(data)
+        ) {
+          backendPosts =
+            data;
+        } else if (
+          Array.isArray(data?.posts)
+        ) {
+          backendPosts =
+            data.posts;
+        } else if (
+          Array.isArray(data?.data)
+        ) {
+          backendPosts =
+            data.data;
+        }
+
+        console.log(
+          "Backend posts count:",
+          backendPosts.length
+        );
 
         const normalizedPosts =
-          backendPosts.map(
-            normalizePost
-          );
+          backendPosts
+            .map(
+              normalizePost
+            )
+            .filter(
+              (post) =>
+                post.id
+            );
 
-        if (!isMounted) return;
+        if (!isMounted) {
+          return;
+        }
 
-        setPosts(normalizedPosts);
+        setPosts(
+          normalizedPosts
+        );
+
+        /* -------------------------------------------------------
+           DEBUG PROFILE PICTURES
+        ------------------------------------------------------- */
+
+        console.log(
+          "========================================"
+        );
+
+        console.log(
+          "NORMALIZED PROFILE PICTURES"
+        );
+
+        normalizedPosts.forEach(
+          (post) => {
+            console.log(
+              post.username,
+              "=>",
+              post.profilePic
+            );
+          }
+        );
+
+        console.log(
+          "========================================"
+        );
 
         /* -------------------------------------------------------
            DETERMINE LIKED POSTS
@@ -337,7 +729,9 @@ export default function FeedPage() {
 
           normalizedPosts.forEach(
             (post) => {
-              likedMap[post.id] =
+              likedMap[
+                post.id
+              ] =
                 post.likeIds.includes(
                   userId.toString()
                 );
@@ -350,14 +744,25 @@ export default function FeedPage() {
         }
       } catch (err) {
         console.error(
-          "Fetch posts error:",
+          "========================================"
+        );
+
+        console.error(
+          "FETCH POSTS ERROR"
+        );
+
+        console.error(
           err
+        );
+
+        console.error(
+          "========================================"
         );
 
         if (isMounted) {
           setError(
-            err.message ||
-              "Unable to load posts"
+            err?.message ||
+              "Unable to load posts."
           );
         }
       } finally {
@@ -376,13 +781,16 @@ export default function FeedPage() {
 
   /* ============================================================
      SEARCH
-============================================================ */
+  ============================================================ */
 
   useEffect(() => {
-    if (!isSearchOpen) return;
+    if (!isSearchOpen) {
+      return;
+    }
 
     requestAnimationFrame(() => {
       setIsSearchVisible(true);
+
       searchInputRef.current?.focus();
     });
   }, [isSearchOpen]);
@@ -401,10 +809,13 @@ export default function FeedPage() {
 
   /* ============================================================
      LIKE / UNLIKE
-============================================================ */
+  ============================================================ */
 
-  const handleLike = async (id) => {
-    const token = getToken();
+  const handleLike = async (
+    id
+  ) => {
+    const token =
+      getToken();
 
     if (!token) {
       alert(
@@ -412,6 +823,7 @@ export default function FeedPage() {
       );
 
       router.push("/login");
+
       return;
     }
 
@@ -425,28 +837,31 @@ export default function FeedPage() {
       );
 
       router.push("/login");
+
       return;
     }
 
     try {
-      const response = await fetch(
-        `${API_URL}/posts/${id}/like`,
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          `${API_URL}/posts/${id}/like`,
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+            headers: {
+              "Content-Type":
+                "application/json",
 
-            Authorization:
-              `Bearer ${token}`,
-          },
+              Authorization:
+                `Bearer ${token}`,
+            },
 
-          body: JSON.stringify({
-            userId,
-          }),
-        }
-      );
+            body:
+              JSON.stringify({
+                userId,
+              }),
+          }
+        );
 
       const data =
         await response.json();
@@ -472,13 +887,15 @@ export default function FeedPage() {
             "accessToken"
           );
 
-          router.push("/login");
+          router.push(
+            "/login"
+          );
 
           return;
         }
 
         throw new Error(
-          data.message ||
+          data?.message ||
             "Failed to like post"
         );
       }
@@ -486,20 +903,24 @@ export default function FeedPage() {
       setLikedPosts(
         (prev) => ({
           ...prev,
-          [id]: data.liked,
+          [id]:
+            data.liked,
         })
       );
 
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === id
-            ? {
-                ...post,
-                likes:
-                  data.likesCount,
-              }
-            : post
-        )
+      setPosts(
+        (prev) =>
+          prev.map(
+            (post) =>
+              post.id === id
+                ? {
+                    ...post,
+                    likes:
+                      data.likesCount ??
+                      post.likes,
+                  }
+                : post
+          )
       );
 
       setSelectedPost(
@@ -508,7 +929,8 @@ export default function FeedPage() {
             ? {
                 ...prev,
                 likes:
-                  data.likesCount,
+                  data.likesCount ??
+                  prev.likes,
               }
             : prev
       );
@@ -519,7 +941,7 @@ export default function FeedPage() {
       );
 
       alert(
-        error.message ||
+        error?.message ||
           "Failed to like post"
       );
     }
@@ -527,278 +949,656 @@ export default function FeedPage() {
 
   /* ============================================================
      COMMENT INPUT
-============================================================ */
+  ============================================================ */
 
   const toggleCommentInput = (
     id
   ) => {
-    setCommentInputs((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setCommentInputs(
+      (prev) => ({
+        ...prev,
+        [id]:
+          !prev[id],
+      })
+    );
   };
 
   /* ============================================================
      ADD COMMENT
-============================================================ */
+  ============================================================ */
 
-  const handleCommentSubmit = async (
-    id,
-    comment
-  ) => {
-    if (!comment?.trim()) return;
+  const handleCommentSubmit =
+    async (
+      id,
+      comment
+    ) => {
+      if (!comment?.trim()) {
+        return;
+      }
 
-    const token = getToken();
+      const token =
+        getToken();
 
-    if (!token) {
-      alert(
-        "Please log in to comment."
-      );
+      if (!token) {
+        alert(
+          "Please log in to comment."
+        );
 
-      router.push("/login");
-      return;
-    }
+        router.push(
+          "/login"
+        );
 
-    const userId =
-      currentUser?.id ||
-      currentUser?._id;
+        return;
+      }
 
-    const username =
-      currentUser?.username ||
-      currentUser?.name;
+      const userId =
+        currentUser?.id ||
+        currentUser?._id;
 
-    if (!userId || !username) {
-      alert(
-        "Please log in again."
-      );
+      const username =
+        currentUser?.username ||
+        currentUser?.name;
 
-      router.push("/login");
-      return;
-    }
+      if (
+        !userId ||
+        !username
+      ) {
+        alert(
+          "Please log in again."
+        );
 
-    try {
-      const response = await fetch(
-        `${API_URL}/posts/${id}/comments`,
-        {
-          method: "POST",
+        router.push(
+          "/login"
+        );
 
-          headers: {
-            "Content-Type":
-              "application/json",
+        return;
+      }
 
-            Authorization:
-              `Bearer ${token}`,
-          },
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/posts/${id}/comments`,
+            {
+              method: "POST",
 
-          body: JSON.stringify({
-            user: userId,
-            username,
-            text: comment.trim(),
-          }),
-        }
-      );
+              headers: {
+                "Content-Type":
+                  "application/json",
 
-      const data =
-        await response.json();
+                Authorization:
+                  `Bearer ${token}`,
+              },
 
-      if (!response.ok) {
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          alert(
-            "Your session has expired. Please log in again."
+              body:
+                JSON.stringify({
+                  user: userId,
+                  username,
+                  text:
+                    comment.trim(),
+                }),
+            }
           );
 
-          router.push("/login");
-          return;
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          if (
+            response.status === 401 ||
+            response.status === 403
+          ) {
+            alert(
+              "Your session has expired. Please log in again."
+            );
+
+            router.push(
+              "/login"
+            );
+
+            return;
+          }
+
+          throw new Error(
+            data?.message ||
+              "Failed to add comment"
+          );
         }
 
-        throw new Error(
-          data.message ||
+        const comments =
+          (
+            data.comments ||
+            []
+          ).map(
+            (
+              commentItem
+            ) => {
+              const commentUser =
+                typeof commentItem.user ===
+                "object"
+                  ? commentItem.user
+                  : null;
+
+              const rawCommentProfilePic =
+                commentUser?.profilePic ||
+                commentUser?.profilePicture ||
+                commentUser?.avatar ||
+                commentUser?.image ||
+                commentItem.profilePic ||
+                commentItem.profilePicture ||
+                currentUser?.profilePic ||
+                "";
+
+              return {
+                id:
+                  commentItem._id ||
+                  Math.random().toString(),
+
+                userId:
+                  commentUser?._id ||
+                  commentUser?.id ||
+                  (typeof commentItem.user ===
+                  "string"
+                    ? commentItem.user
+                    : null),
+
+                user:
+                  commentUser?.username ||
+                  commentItem.username ||
+                  username,
+
+                profilePic:
+                  getProfileImageUrl(
+                    rawCommentProfilePic
+                  ),
+
+                text:
+                  commentItem.text ||
+                  "",
+              };
+            }
+          );
+
+        setPosts(
+          (prev) =>
+            prev.map(
+              (post) =>
+                post.id === id
+                  ? {
+                      ...post,
+                      comments,
+                    }
+                  : post
+            )
+        );
+
+        setSelectedPost(
+          (prev) =>
+            prev?.id === id
+              ? {
+                  ...prev,
+                  comments,
+                }
+              : prev
+        );
+
+        setCommentInputs(
+          (prev) => ({
+            ...prev,
+            [id]: false,
+          })
+        );
+      } catch (error) {
+        console.error(
+          "Comment error:",
+          error
+        );
+
+        alert(
+          error?.message ||
             "Failed to add comment"
         );
       }
-
-      const comments =
-        (
-          data.comments || []
-        ).map(
-          (commentItem) => {
-            const commentUser =
-              commentItem.user;
-
-            return {
-              id:
-                commentItem._id ||
-                Math.random().toString(),
-
-              userId:
-                commentUser?._id ||
-                commentUser?.id ||
-                null,
-
-              user:
-                commentUser?.username ||
-                commentItem.username ||
-                username,
-
-              profilePic:
-                commentUser?.profilePic ||
-                currentUser?.profilePic ||
-                "/images/default-profile.jpg",
-
-              text:
-                commentItem.text ||
-                "",
-            };
-          }
-        );
-
-      setPosts((prev) =>
-        prev.map((post) =>
-          post.id === id
-            ? {
-                ...post,
-                comments,
-              }
-            : post
-        )
-      );
-
-      setSelectedPost(
-        (prev) =>
-          prev?.id === id
-            ? {
-                ...prev,
-                comments,
-              }
-            : prev
-      );
-
-      setCommentInputs(
-        (prev) => ({
-          ...prev,
-          [id]: false,
-        })
-      );
-    } catch (error) {
-      console.error(
-        "Comment error:",
-        error
-      );
-
-      alert(
-        error.message ||
-          "Failed to add comment"
-      );
-    }
-  };
+    };
 
   /* ============================================================
      DELETE POST
-============================================================ */
+  ============================================================ */
 
-  const handleDeletePost = async (
-    id
-  ) => {
-    const token = getToken();
+  const handleDeletePost =
+    async (id) => {
+      const token =
+        getToken();
 
-    if (!token) {
-      alert(
-        "Please log in."
-      );
+      if (!token) {
+        alert(
+          "Please log in."
+        );
 
-      router.push("/login");
-      return;
-    }
+        router.push(
+          "/login"
+        );
 
-    const confirmed =
-      window.confirm(
-        "Are you sure you want to delete this post?"
-      );
+        return;
+      }
 
-    if (!confirmed) return;
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to delete this post?"
+        );
 
-    try {
-      const response = await fetch(
-        `${API_URL}/posts/${id}`,
-        {
-          method: "DELETE",
+      if (!confirmed) {
+        return;
+      }
 
-          headers: {
-            Authorization:
-              `Bearer ${token}`,
-          },
-        }
-      );
+      try {
+        const response =
+          await fetch(
+            `${API_URL}/posts/${id}`,
+            {
+              method: "DELETE",
 
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        if (
-          response.status === 401 ||
-          response.status === 403
-        ) {
-          alert(
-            "Your session has expired. Please log in again."
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
           );
 
-          router.push("/login");
-          return;
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          if (
+            response.status === 401 ||
+            response.status === 403
+          ) {
+            alert(
+              "Your session has expired. Please log in again."
+            );
+
+            router.push(
+              "/login"
+            );
+
+            return;
+          }
+
+          throw new Error(
+            data?.message ||
+              "Failed to delete post"
+          );
         }
 
-        throw new Error(
-          data.message ||
+        setPosts(
+          (prev) =>
+            prev.filter(
+              (post) =>
+                post.id !== id
+            )
+        );
+
+        if (
+          selectedPost?.id ===
+          id
+        ) {
+          closePostModal();
+        }
+      } catch (error) {
+        console.error(
+          "Delete post error:",
+          error
+        );
+
+        alert(
+          error?.message ||
             "Failed to delete post"
         );
       }
+    };
 
-      setPosts((prev) =>
-        prev.filter(
-          (post) =>
-            post.id !== id
-        )
-      );
+  /* ============================================================
+     FOLLOW / UNFOLLOW
+  ============================================================ */
+
+  const isFollowingUser = (
+    targetUserId
+  ) => {
+    if (!targetUserId) {
+      return false;
+    }
+
+    const following =
+      Array.isArray(
+        currentUser?.following
+      )
+        ? currentUser.following
+        : [];
+
+    return following.some(
+      (id) => {
+        const followingId =
+          typeof id === "object" &&
+          id !== null
+            ? id._id || id.id
+            : id;
+
+        return (
+          followingId?.toString() ===
+          targetUserId.toString()
+        );
+      }
+    );
+  };
+
+  /* ============================================================
+     HANDLE FOLLOW / UNFOLLOW
+  ============================================================ */
+
+  const handleToggleFollow =
+    async (
+      targetUserId
+    ) => {
+      const token =
+        getToken();
+
+      if (!token) {
+        alert(
+          "Please log in to follow members."
+        );
+
+        router.push(
+          "/login"
+        );
+
+        return;
+      }
+
+      const currentUserId =
+        currentUser?.id ||
+        currentUser?._id;
+
+      if (!currentUserId) {
+        alert(
+          "Please log in again."
+        );
+
+        router.push(
+          "/login"
+        );
+
+        return;
+      }
+
+      if (!targetUserId) {
+        alert(
+          "Unable to identify this member."
+        );
+
+        return;
+      }
 
       if (
-        selectedPost?.id === id
+        currentUserId.toString() ===
+        targetUserId.toString()
       ) {
-        closePostModal();
+        return;
       }
-    } catch (error) {
-      console.error(
-        "Delete post error:",
-        error
+
+      if (followLoading) {
+        return;
+      }
+
+      try {
+        setFollowLoading(true);
+
+        const response =
+          await fetch(
+            `${API_URL}/users/${targetUserId}/follow`,
+            {
+              method: "POST",
+
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          if (
+            response.status === 401 ||
+            response.status === 403
+          ) {
+            alert(
+              "Your session has expired. Please log in again."
+            );
+
+            localStorage.removeItem(
+              "token"
+            );
+
+            localStorage.removeItem(
+              "authToken"
+            );
+
+            localStorage.removeItem(
+              "accessToken"
+            );
+
+            localStorage.removeItem(
+              "currentUser"
+            );
+
+            router.push(
+              "/login"
+            );
+
+            return;
+          }
+
+          throw new Error(
+            data?.message ||
+              "Failed to update follow status"
+          );
+        }
+
+        const nowFollowing =
+          Boolean(
+            data?.following
+          );
+
+        setCurrentUser(
+          (prev) => {
+            if (!prev) {
+              return prev;
+            }
+
+            const existingFollowing =
+              Array.isArray(
+                prev.following
+              )
+                ? prev.following
+                : [];
+
+            let updatedFollowing;
+
+            if (nowFollowing) {
+              const alreadyFollowing =
+                existingFollowing.some(
+                  (id) => {
+                    const followingId =
+                      typeof id ===
+                        "object" &&
+                      id !== null
+                        ? id._id ||
+                          id.id
+                        : id;
+
+                    return (
+                      followingId
+                        ?.toString() ===
+                      targetUserId.toString()
+                    );
+                  }
+                );
+
+              updatedFollowing =
+                alreadyFollowing
+                  ? existingFollowing
+                  : [
+                      ...existingFollowing,
+                      targetUserId,
+                    ];
+            } else {
+              updatedFollowing =
+                existingFollowing.filter(
+                  (id) => {
+                    const followingId =
+                      typeof id ===
+                        "object" &&
+                      id !== null
+                        ? id._id ||
+                          id.id
+                        : id;
+
+                    return (
+                      followingId
+                        ?.toString() !==
+                      targetUserId.toString()
+                    );
+                  }
+                );
+            }
+
+            const updatedUser =
+              {
+                ...prev,
+                following:
+                  updatedFollowing,
+              };
+
+            try {
+              localStorage.setItem(
+                "currentUser",
+                JSON.stringify(
+                  updatedUser
+                )
+              );
+            } catch (
+              storageError
+            ) {
+              console.error(
+                "Failed to save follow state:",
+                storageError
+              );
+            }
+
+            return updatedUser;
+          }
+        );
+
+        setSelectedPost(
+          (prev) =>
+            prev
+              ? {
+                  ...prev,
+                }
+              : prev
+        );
+      } catch (error) {
+        console.error(
+          "Follow / unfollow error:",
+          error
+        );
+
+        alert(
+          error?.message ||
+            "Failed to update follow status"
+        );
+      } finally {
+        setFollowLoading(
+          false
+        );
+      }
+    };
+
+  /* ============================================================
+     OPEN INBOX
+  ============================================================ */
+
+  const handleOpenInbox = (
+    targetUserId
+  ) => {
+    if (!targetUserId) {
+      return;
+    }
+
+    const token =
+      getToken();
+
+    if (!token) {
+      alert(
+        "Please log in to send messages."
       );
 
-      alert(
-        error.message ||
-          "Failed to delete post"
+      router.push(
+        "/login"
       );
+
+      return;
     }
+
+    if (
+      !isFollowingUser(
+        targetUserId
+      )
+    ) {
+      alert(
+        "Follow this user first to send them a message."
+      );
+
+      return;
+    }
+
+    router.push(
+      `/messages?user=${encodeURIComponent(
+        targetUserId
+      )}`
+    );
   };
 
   /* ============================================================
      POST MODAL
-============================================================ */
+  ============================================================ */
 
   const openPostModal = (
     post
   ) => {
-    setSelectedPost(post);
-    setIsModalOpen(true);
+    setSelectedPost(
+      post
+    );
+
+    setIsModalOpen(
+      true
+    );
 
     document.body.style.overflow =
       "hidden";
   };
 
   const closePostModal = () => {
-    setIsModalOpen(false);
+    setIsModalOpen(
+      false
+    );
 
     setTimeout(() => {
-      setSelectedPost(null);
+      setSelectedPost(
+        null
+      );
+
       document.body.style.overflow =
         "auto";
     }, 300);
@@ -806,61 +1606,70 @@ export default function FeedPage() {
 
   /* ============================================================
      VIEW ALL POSTS
-============================================================ */
+  ============================================================ */
 
-  const handleViewAllPosts = () => {
-    setProfileUser("");
-    setSearchQuery("");
+  const handleViewAllPosts =
+    () => {
+      setProfileUser("");
 
-    window.history.replaceState(
-      {},
-      "",
-      "/feed"
-    );
-  };
+      setSearchQuery("");
+
+      window.history.replaceState(
+        {},
+        "",
+        "/feed"
+      );
+    };
 
   /* ============================================================
-     PROFILE FILTER
-
-     Supports:
-     /feed?user=MONGODB_ID
-
-     and also:
-     /feed?user=username
-============================================================ */
+     FILTER POSTS
+  ============================================================ */
 
   const filteredPosts =
-    posts.filter((post) => {
-      const query =
-        searchQuery.toLowerCase();
+    posts.filter(
+      (post) => {
+        const query =
+          searchQuery
+            .toLowerCase();
 
-      const matchesSearch =
-        (post.title || "")
-          .toLowerCase()
-          .includes(query) ||
-        (post.description || "")
-          .toLowerCase()
-          .includes(query) ||
-        (post.username || "")
-          .toLowerCase()
-          .includes(query);
+        const matchesSearch =
+          (post.title ||
+            "")
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          (post.description ||
+            "")
+            .toLowerCase()
+            .includes(
+              query
+            ) ||
+          (post.username ||
+            "")
+            .toLowerCase()
+            .includes(
+              query
+            );
 
-      const matchesProfile =
-        !profileUser ||
-        post.userId?.toString() ===
-          profileUser.toString() ||
-        post.username ===
-          profileUser;
+        const matchesProfile =
+          !profileUser ||
+          post.userId
+            ?.toString() ===
+            profileUser.toString() ||
+          post.username ===
+            profileUser;
 
-      return (
-        matchesSearch &&
-        matchesProfile
-      );
-    });
+        return (
+          matchesSearch &&
+          matchesProfile
+        );
+      }
+    );
 
   /* ============================================================
      LOADING
-============================================================ */
+  ============================================================ */
 
   if (loading) {
     return (
@@ -874,12 +1683,13 @@ export default function FeedPage() {
 
   /* ============================================================
      PAGE
-============================================================ */
+  ============================================================ */
 
   return (
     <main
       className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] relative overflow-hidden`}
     >
+
       <style jsx>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none;
@@ -896,11 +1706,13 @@ export default function FeedPage() {
       ====================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.06]">
+
         <div className="absolute -top-40 -right-40 w-[520px] h-[520px] rounded-full border border-[#FF5C7C]" />
 
         <div className="absolute -top-20 -right-20 w-[380px] h-[380px] rounded-full border border-[#9D8DF1]" />
 
         <div className="absolute top-1/2 -left-52 w-[420px] h-[420px] rounded-full border border-[#FFC145]" />
+
       </div>
 
       {/* ======================================================
@@ -945,16 +1757,19 @@ export default function FeedPage() {
                           p.location
                             ?.country
                       )
-                      .filter(Boolean)
+                      .filter(
+                        Boolean
+                      )
                   ).size
                 }{" "}
                 countries
               </span>
 
             </div>
+
           </div>
 
-          {/* Mobile buttons */}
+          {/* MOBILE BUTTONS */}
 
           <div className="flex items-center gap-2 sm:hidden shrink-0">
 
@@ -980,11 +1795,10 @@ export default function FeedPage() {
             </button>
 
           </div>
+
         </div>
 
-        {/* ====================================================
-            NAVIGATION
-        ==================================================== */}
+        {/* NAVIGATION */}
 
         <div
           className={`flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 w-full sm:w-auto ${
@@ -995,8 +1809,6 @@ export default function FeedPage() {
         >
 
           <nav className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-6 w-full sm:w-auto [font-family:var(--font-body)] text-sm font-medium">
-
-            {/* HOME NOW GOES TO FEED */}
 
             <Link
               href="/feed"
@@ -1060,9 +1872,7 @@ export default function FeedPage() {
 
           </nav>
 
-          {/* ==================================================
-              DESKTOP PROFILE
-          ================================================== */}
+          {/* DESKTOP PROFILE */}
 
           <div className="hidden sm:flex items-center gap-3">
 
@@ -1084,8 +1894,12 @@ export default function FeedPage() {
 
                 <Avatar
                   src={
-                    currentUser?.profilePic ||
-                    "/images/default-profile.jpg"
+                    getProfileImageUrl(
+                      currentUser?.profilePic ||
+                        currentUser?.profilePicture ||
+                        currentUser?.avatar ||
+                        currentUser?.image
+                    )
                   }
                   name={
                     currentUser?.username ||
@@ -1100,9 +1914,7 @@ export default function FeedPage() {
 
           </div>
 
-          {/* ==================================================
-              MOBILE PROFILE
-          ================================================== */}
+          {/* MOBILE PROFILE */}
 
           <Link
             href="/profile"
@@ -1112,8 +1924,12 @@ export default function FeedPage() {
 
               <Avatar
                 src={
-                  currentUser?.profilePic ||
-                  "/images/default-profile.jpg"
+                  getProfileImageUrl(
+                    currentUser?.profilePic ||
+                      currentUser?.profilePicture ||
+                      currentUser?.avatar ||
+                      currentUser?.image
+                  )
                 }
                 name={
                   currentUser?.username ||
@@ -1129,9 +1945,7 @@ export default function FeedPage() {
         </div>
       </header>
 
-      {/* ======================================================
-          ERROR
-      ====================================================== */}
+      {/* ERROR */}
 
       {error && (
         <div className="relative z-10 max-w-2xl mx-auto mt-6 px-4 sm:px-6">
@@ -1142,11 +1956,17 @@ export default function FeedPage() {
               {error}
             </p>
 
+            <p className="text-xs text-[#ABA3C4] mt-2 break-all">
+              API:
+              {" "}
+              {API_URL}/posts
+            </p>
+
             <button
               onClick={() =>
                 window.location.reload()
               }
-              className="mt-2 text-xs text-[#9D8DF1] hover:text-[#B3A5F5]"
+              className="mt-3 text-xs text-[#9D8DF1] hover:text-[#B3A5F5]"
             >
               Try again
             </button>
@@ -1155,9 +1975,7 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* ======================================================
-          PROFILE POST HEADER
-      ====================================================== */}
+      {/* PROFILE POST HEADER */}
 
       {profileUser && (
         <div className="relative z-10 max-w-2xl mx-auto mt-6 px-4 sm:px-6">
@@ -1198,13 +2016,12 @@ export default function FeedPage() {
               </button>
 
             </div>
+
           </div>
         </div>
       )}
 
-      {/* ======================================================
-          SEARCH CHIP
-      ====================================================== */}
+      {/* SEARCH CHIP */}
 
       {searchQuery &&
         !isSearchOpen && (
@@ -1227,6 +2044,7 @@ export default function FeedPage() {
                 role="button"
                 onClick={(e) => {
                   e.stopPropagation();
+
                   setSearchQuery("");
                 }}
                 className="text-[#ABA3C4] hover:text-[#FF5C7C] ml-1"
@@ -1239,9 +2057,7 @@ export default function FeedPage() {
           </div>
         )}
 
-      {/* ======================================================
-          YOUR CIRCL
-      ====================================================== */}
+      {/* YOUR CIRCL */}
 
       {posts.length > 0 &&
         !profileUser && (
@@ -1308,7 +2124,9 @@ export default function FeedPage() {
 
                           <Avatar
                             src={
-                              p.profilePic
+                              getProfileImageUrl(
+                                p.profilePic
+                              )
                             }
                             name={
                               p.username
@@ -1320,8 +2138,7 @@ export default function FeedPage() {
                           {p.location && (
                             <span className="absolute -bottom-1 -right-1 text-sm leading-none bg-[#1E1A2E] rounded-full w-5 h-5 flex items-center justify-center border border-white/10">
                               {
-                                p
-                                  .location
+                                p.location
                                   .flag
                               }
                             </span>
@@ -1356,11 +2173,7 @@ export default function FeedPage() {
 
             <p className="text-[#ABA3C4] [font-family:var(--font-body)] text-sm">
               {profileUser
-                ? `${
-                    filteredPosts[0]
-                      ?.username ||
-                    profileUser
-                  } hasn't posted anything yet.`
+                ? `${profileUser} hasn't posted anything yet.`
                 : "Nothing here yet — share the first post."}
             </p>
 
@@ -1378,26 +2191,42 @@ export default function FeedPage() {
           </div>
         ) : (
           filteredPosts.map(
-            (post) => (
-              <article
-                key={post.id}
-                className="bg-[#1E1A2E] border border-white/5 rounded-3xl overflow-hidden hover:border-[#FF5C7C]/30 transition-all duration-300 cursor-pointer"
-                onClick={() =>
-                  openPostModal(
-                    post
-                  )
-                }
-              >
+            (post) => {
+              const currentUserId =
+                currentUser?.id ||
+                currentUser?._id;
 
-                {/* ==================================================
-                    POST HEADER
-                ================================================== */}
+              const isOwnPost =
+                post.userId &&
+                currentUserId &&
+                post.userId
+                  .toString() ===
+                currentUserId.toString();
 
-                <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+              const following =
+                post.userId &&
+                isFollowingUser(
+                  post.userId
+                );
 
-                  <div className="flex items-center gap-3">
+              return (
+                <article
+                  key={
+                    post.id
+                  }
+                  className="bg-[#1E1A2E] border border-white/5 rounded-3xl overflow-hidden hover:border-[#FF5C7C]/30 transition-all duration-300 cursor-pointer"
+                  onClick={() =>
+                    openPostModal(
+                      post
+                    )
+                  }
+                >
 
-                    {/* CLICKABLE PROFILE PICTURE */}
+                  {/* POST HEADER */}
+
+                  <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+
+                    {/* USER PROFILE */}
 
                     <Link
                       href={`/profile?user=${encodeURIComponent(
@@ -1407,308 +2236,337 @@ export default function FeedPage() {
                       onClick={(e) =>
                         e.stopPropagation()
                       }
-                      className="block rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] to-[#9D8DF1] w-9 h-9 hover:scale-105 transition-transform"
+                      className="flex items-center gap-3 min-w-0 group"
                     >
-                      <Avatar
-                        src={
-                          post.profilePic
-                        }
-                        name={
-                          post.username
-                        }
-                        size={36}
-                        className="border-2 border-[#1E1A2E]"
-                      />
-                    </Link>
 
-                    <div className="flex flex-col">
+                      <span className="block shrink-0 rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] to-[#9D8DF1] w-9 h-9 group-hover:scale-105 transition-transform">
 
-                      {/* CLICKABLE USERNAME */}
-
-                      <Link
-                        href={`/profile?user=${encodeURIComponent(
-                          post.userId ||
+                        <Avatar
+                          src={
+                            getProfileImageUrl(
+                              post.profilePic
+                            )
+                          }
+                          name={
                             post.username
-                        )}`}
-                        onClick={(e) =>
-                          e.stopPropagation()
-                        }
-                        className="font-medium text-[#F5F1EA] text-sm hover:text-[#FF5C7C] transition-colors"
-                      >
-                        {
-                          post.username
-                        }
-                      </Link>
+                          }
+                          size={36}
+                          className="border-2 border-[#1E1A2E]"
+                        />
 
-                      {post.location && (
-                        <span className="[font-family:var(--font-mono)] text-[11px] text-[#ABA3C4]">
+                      </span>
+
+                      <div className="flex flex-col min-w-0">
+
+                        <span className="font-medium text-[#F5F1EA] text-sm hover:text-[#FF5C7C] transition-colors truncate">
                           {
-                            post
-                              .location
-                              .flag
-                          }{" "}
-                          {
-                            post
-                              .location
-                              .country
+                            post.username
                           }
                         </span>
+
+                        {post.location && (
+                          <span className="[font-family:var(--font-mono)] text-[11px] text-[#ABA3C4] truncate">
+                            {
+                              post.location
+                                .flag
+                            }{" "}
+                            {
+                              post.location
+                                .country
+                            }
+                          </span>
+                        )}
+
+                      </div>
+
+                    </Link>
+
+                    {/* RIGHT SIDE ACTIONS */}
+
+                    <div className="flex items-center gap-2 shrink-0">
+
+                      {!isOwnPost &&
+                        post.userId &&
+                        currentUserId && (
+                          <>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+
+                                handleToggleFollow(
+                                  post.userId
+                                );
+                              }}
+                              disabled={
+                                followLoading
+                              }
+                              className={`rounded-full px-3 sm:px-4 py-1.5 text-[11px] sm:text-xs font-medium border transition-all duration-200 ${
+                                following
+                                  ? "bg-[#262238] border-[#9D8DF1]/50 text-[#F5F1EA] hover:border-[#FF5C7C]/50 hover:text-[#FF8DA3]"
+                                  : "bg-[#FF5C7C] border-[#FF5C7C] text-white hover:bg-[#ff4569] hover:border-[#ff4569]"
+                              } ${
+                                followLoading
+                                  ? "opacity-60 cursor-not-allowed"
+                                  : ""
+                              }`}
+                            >
+                              {followLoading
+                                ? "Updating…"
+                                : following
+                                ? "Following"
+                                : "Follow"}
+                            </button>
+
+                            {following && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+
+                                  handleOpenInbox(
+                                    post.userId
+                                  );
+                                }}
+                                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-[#262238] border border-[#9D8DF1]/40 text-[#9D8DF1] hover:bg-[#9D8DF1]/15 hover:border-[#9D8DF1] hover:text-[#BDB4FF] transition-all duration-200"
+                                title={`Message ${post.username}`}
+                                aria-label={`Message ${post.username}`}
+                              >
+                                <FaEnvelope className="text-xs sm:text-sm" />
+                              </button>
+                            )}
+
+                          </>
+                        )}
+
+                      {isOwnPost && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+
+                            handleDeletePost(
+                              post.id
+                            );
+                          }}
+                          className="text-[#ABA3C4] hover:text-[#FF5C7C] transition text-base p-1"
+                          title="Delete post"
+                        >
+                          <FaTrash />
+                        </button>
                       )}
 
                     </div>
 
                   </div>
 
-                  {/* ==================================================
-                      DELETE OWN POST
-                  ================================================== */}
+                  {/* IMAGE */}
 
-                  {post.userId &&
-                    (
-                      currentUser?.id ||
-                      currentUser?._id
-                    ) &&
-                    post.userId
-                      .toString() ===
-                      (
-                        currentUser?.id ||
-                        currentUser?._id
-                      ).toString() && (
+                  <div className="relative h-52 sm:h-64 md:h-72 w-full">
+
+                    <PostImage
+                      src={
+                        post.image
+                      }
+                      alt={
+                        post.title ||
+                        "Post"
+                      }
+                    />
+
+                  </div>
+
+                  {/* CONTENT */}
+
+                  <div className="p-4 sm:p-5">
+
+                    <h2 className="[font-family:var(--font-display)] text-lg sm:text-xl font-semibold text-[#F5F1EA] mb-1.5">
+                      {
+                        post.title
+                      }
+                    </h2>
+
+                    <p className="text-[#ABA3C4] text-sm leading-relaxed mb-4 line-clamp-2">
+                      {
+                        post.description
+                      }
+                    </p>
+
+                    {/* ACTIONS */}
+
+                    <div className="flex items-center gap-5">
+
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
 
-                          handleDeletePost(
+                          handleLike(
                             post.id
                           );
                         }}
-                        className="text-[#ABA3C4] hover:text-[#FF5C7C] transition text-base"
-                        title="Delete post"
+                        className="group relative w-9 h-9 flex items-center justify-center"
                       >
-                        <FaTrash />
-                      </button>
-                    )}
 
-                </div>
+                        <span
+                          className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${
+                            likedPosts[
+                              post.id
+                            ]
+                              ? "border-[#FF5C7C] bg-[#FF5C7C]/15 scale-100"
+                              : "border-white/10 scale-90 group-hover:border-[#FF5C7C]/40"
+                          }`}
+                        />
 
-                {/* ==================================================
-                    IMAGE
-                ================================================== */}
-
-                <div className="relative h-52 sm:h-64 md:h-72 w-full">
-
-                  <PostImage
-                    src={
-                      post.image
-                    }
-                    alt={
-                      post.title ||
-                      "Post"
-                    }
-                  />
-
-                </div>
-
-                {/* ==================================================
-                    CONTENT
-                ================================================== */}
-
-                <div className="p-4 sm:p-5">
-
-                  <h2 className="[font-family:var(--font-display)] text-lg sm:text-xl font-semibold text-[#F5F1EA] mb-1.5">
-                    {post.title}
-                  </h2>
-
-                  <p className="text-[#ABA3C4] text-sm leading-relaxed mb-4 line-clamp-2">
-                    {
-                      post.description
-                    }
-                  </p>
-
-                  {/* ==================================================
-                      ACTIONS
-                  ================================================== */}
-
-                  <div className="flex items-center gap-5">
-
-                    {/* LIKE */}
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-
-                        handleLike(
+                        {likedPosts[
                           post.id
-                        );
-                      }}
-                      className="group relative w-9 h-9 flex items-center justify-center"
-                    >
-
-                      <span
-                        className={`absolute inset-0 rounded-full border-2 transition-all duration-300 ${
-                          likedPosts[
-                            post.id
-                          ]
-                            ? "border-[#FF5C7C] bg-[#FF5C7C]/15 scale-100"
-                            : "border-white/10 scale-90 group-hover:border-[#FF5C7C]/40"
-                        }`}
-                      />
-
-                      {likedPosts[
-                        post.id
-                      ] ? (
-                        <FaHeart className="relative text-[#FF5C7C] text-base" />
-                      ) : (
-                        <FaRegHeart className="relative text-[#ABA3C4] group-hover:text-[#FF5C7C] text-base transition" />
-                      )}
-
-                    </button>
-
-                    <span className="[font-family:var(--font-mono)] text-[#FFC145] text-sm -ml-2">
-                      {
-                        post.likes
-                      }
-                    </span>
-
-                    {/* COMMENT */}
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-
-                        toggleCommentInput(
-                          post.id
-                        );
-                      }}
-                      className="text-[#ABA3C4] hover:text-[#9D8DF1] transition text-base"
-                    >
-                      <FaComment />
-                    </button>
-
-                    <span className="[font-family:var(--font-mono)] text-[#ABA3C4] text-sm -ml-2">
-                      {
-                        post
-                          .comments
-                          .length
-                      }
-                    </span>
-
-                  </div>
-
-                  {/* ==================================================
-                      COMMENT INPUT
-                  ================================================== */}
-
-                  {commentInputs[
-                    post.id
-                  ] && (
-                    <div
-                      className="mt-4"
-                      onClick={(e) =>
-                        e.stopPropagation()
-                      }
-                    >
-
-                      <input
-                        type="text"
-                        placeholder="Write a comment…"
-                        className="w-full rounded-full bg-[#262238] border border-white/5 px-4 py-2.5 text-sm text-[#F5F1EA] placeholder:text-[#ABA3C4] focus:outline-none focus:ring-2 focus:ring-[#9D8DF1]/50"
-                        onKeyDown={(
-                          e
-                        ) => {
-                          if (
-                            e.key ===
-                            "Enter"
-                          ) {
-                            handleCommentSubmit(
-                              post.id,
-                              e.target
-                                .value
-                            );
-
-                            e.target.value =
-                              "";
-                          }
-                        }}
-                      />
-
-                    </div>
-                  )}
-
-                  {/* ==================================================
-                      COMMENTS
-                  ================================================== */}
-
-                  {post.comments
-                    .length >
-                    0 && (
-                    <div className="mt-4 border-t border-white/5 pt-3 space-y-1.5">
-
-                      {post.comments
-                        .slice(
-                          0,
-                          2
-                        )
-                        .map(
-                          (
-                            comment
-                          ) => (
-                            <div
-                              key={
-                                comment.id
-                              }
-                              className="flex items-center gap-2"
-                            >
-
-                              <Avatar
-                                src={
-                                  comment.profilePic
-                                }
-                                name={
-                                  comment.user
-                                }
-                                size={
-                                  24
-                                }
-                              />
-
-                              <p className="text-sm text-[#ABA3C4]">
-
-                                <span className="font-medium text-[#F5F1EA]">
-                                  {
-                                    comment.user
-                                  }
-                                </span>{" "}
-
-                                {
-                                  comment.text
-                                }
-
-                              </p>
-
-                            </div>
-                          )
+                        ] ? (
+                          <FaHeart className="relative text-[#FF5C7C] text-base" />
+                        ) : (
+                          <FaRegHeart className="relative text-[#ABA3C4] group-hover:text-[#FF5C7C] text-base transition" />
                         )}
 
-                      {post.comments
-                        .length >
-                        2 && (
-                        <p className="text-xs text-[#9D8DF1]">
-                          View{" "}
-                          {post
-                            .comments
-                            .length -
-                            2}{" "}
-                          more comments
-                        </p>
-                      )}
+                      </button>
+
+                      <span className="[font-family:var(--font-mono)] text-[#FFC145] text-sm -ml-2">
+                        {
+                          post.likes
+                        }
+                      </span>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          toggleCommentInput(
+                            post.id
+                          );
+                        }}
+                        className="text-[#ABA3C4] hover:text-[#9D8DF1] transition text-base"
+                      >
+                        <FaComment />
+                      </button>
+
+                      <span className="[font-family:var(--font-mono)] text-[#ABA3C4] text-sm -ml-2">
+                        {
+                          post.comments
+                            .length
+                        }
+                      </span>
 
                     </div>
-                  )}
 
-                </div>
-              </article>
-            )
+                    {/* COMMENT INPUT */}
+
+                    {commentInputs[
+                      post.id
+                    ] && (
+                      <div
+                        className="mt-4"
+                        onClick={(e) =>
+                          e.stopPropagation()
+                        }
+                      >
+
+                        <input
+                          type="text"
+                          placeholder="Write a comment…"
+                          className="w-full rounded-full bg-[#262238] border border-white/5 px-4 py-2.5 text-sm text-[#F5F1EA] placeholder:text-[#ABA3C4] focus:outline-none focus:ring-2 focus:ring-[#9D8DF1]/50"
+                          onKeyDown={(
+                            e
+                          ) => {
+                            if (
+                              e.key ===
+                              "Enter"
+                            ) {
+                              handleCommentSubmit(
+                                post.id,
+                                e.target
+                                  .value
+                              );
+
+                              e.target.value =
+                                "";
+                            }
+                          }}
+                        />
+
+                      </div>
+                    )}
+
+                    {/* COMMENTS */}
+
+                    {post.comments
+                      .length >
+                      0 && (
+                      <div className="mt-4 border-t border-white/5 pt-3 space-y-1.5">
+
+                        {post.comments
+                          .slice(
+                            0,
+                            2
+                          )
+                          .map(
+                            (
+                              comment
+                            ) => (
+                              <div
+                                key={
+                                  comment.id
+                                }
+                                className="flex items-center gap-2"
+                              >
+
+                                <Avatar
+                                  src={
+                                    getProfileImageUrl(
+                                      comment.profilePic
+                                    )
+                                  }
+                                  name={
+                                    comment.user
+                                  }
+                                  size={
+                                    24
+                                  }
+                                />
+
+                                <p className="text-sm text-[#ABA3C4]">
+
+                                  <span className="font-medium text-[#F5F1EA]">
+                                    {
+                                      comment.user
+                                    }
+                                  </span>{" "}
+
+                                  {
+                                    comment.text
+                                  }
+
+                                </p>
+
+                              </div>
+                            )
+                          )}
+
+                        {post.comments
+                          .length >
+                          2 && (
+                          <p className="text-xs text-[#9D8DF1]">
+                            View{" "}
+                            {post.comments
+                              .length -
+                              2}{" "}
+                            more comments
+                          </p>
+                        )}
+
+                      </div>
+                    )}
+
+                  </div>
+                </article>
+              );
+            }
           )
         )}
 
@@ -1837,9 +2695,7 @@ export default function FeedPage() {
             }
           >
 
-            {/* ==================================================
-                MODAL HEADER
-            ================================================== */}
+            {/* MODAL HEADER */}
 
             <div className="flex items-center justify-between p-4 border-b border-white/5 sticky top-0 bg-[#1E1A2E] z-10">
 
@@ -1869,9 +2725,7 @@ export default function FeedPage() {
 
             <div className="p-4">
 
-              {/* ==================================================
-                  MODAL USER
-              ================================================== */}
+              {/* MODAL USER */}
 
               <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/5">
 
@@ -1890,7 +2744,9 @@ export default function FeedPage() {
 
                     <Avatar
                       src={
-                        selectedPost.profilePic
+                        getProfileImageUrl(
+                          selectedPost.profilePic
+                        )
                       }
                       name={
                         selectedPost.username
@@ -1912,13 +2768,11 @@ export default function FeedPage() {
                     {selectedPost.location && (
                       <span className="[font-family:var(--font-mono)] text-[11px] text-[#ABA3C4]">
                         {
-                          selectedPost
-                            .location
+                          selectedPost.location
                             .flag
                         }{" "}
                         {
-                          selectedPost
-                            .location
+                          selectedPost.location
                             .country
                         }
                       </span>
@@ -1928,20 +2782,78 @@ export default function FeedPage() {
 
                 </Link>
 
-                {/* DELETE */}
+                {/* FOLLOW + INBOX */}
 
                 {selectedPost.userId &&
-                  (
-                    currentUser?.id ||
-                    currentUser?._id
-                  ) &&
-                  selectedPost.userId
-                    .toString() ===
+                  (currentUser?.id ||
+                    currentUser?._id) &&
+                  selectedPost.userId.toString() !==
+                    (
+                      currentUser?.id ||
+                      currentUser?._id
+                    ).toString() ? (
+
+                  <div className="flex items-center gap-2 shrink-0">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleToggleFollow(
+                          selectedPost.userId
+                        )
+                      }
+                      disabled={
+                        followLoading
+                      }
+                      className={`rounded-full px-4 py-2 text-xs sm:text-sm font-medium border transition-all duration-200 ${
+                        isFollowingUser(
+                          selectedPost.userId
+                        )
+                          ? "bg-[#262238] border-[#9D8DF1]/50 text-[#F5F1EA] hover:border-[#FF5C7C]/50 hover:text-[#FF8DA3]"
+                          : "bg-[#FF5C7C] border-[#FF5C7C] text-white hover:bg-[#ff4569]"
+                      }`}
+                    >
+                      {followLoading
+                        ? "Updating…"
+                        : isFollowingUser(
+                            selectedPost.userId
+                          )
+                        ? "Following"
+                        : "Follow"}
+                    </button>
+
+                    {isFollowingUser(
+                      selectedPost.userId
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleOpenInbox(
+                            selectedPost.userId
+                          )
+                        }
+                        className="w-9 h-9 rounded-full flex items-center justify-center bg-[#262238] border border-[#9D8DF1]/40 text-[#9D8DF1] hover:bg-[#9D8DF1]/15 hover:border-[#9D8DF1] hover:text-[#BDB4FF] transition-all duration-200"
+                        title={`Message ${selectedPost.username}`}
+                      >
+                        <FaEnvelope className="text-sm" />
+                      </button>
+                    )}
+
+                  </div>
+
+                ) : (
+
+                  selectedPost.userId &&
+                  (currentUser?.id ||
+                    currentUser?._id) &&
+                  selectedPost.userId.toString() ===
                     (
                       currentUser?.id ||
                       currentUser?._id
                     ).toString() && (
+
                     <button
+                      type="button"
                       onClick={() =>
                         handleDeletePost(
                           selectedPost.id
@@ -1952,13 +2864,13 @@ export default function FeedPage() {
                     >
                       <FaTrash />
                     </button>
-                  )}
+
+                  )
+                )}
 
               </div>
 
-              {/* ==================================================
-                  IMAGE
-              ================================================== */}
+              {/* IMAGE */}
 
               <div className="relative h-52 sm:h-64 w-full mt-4 rounded-2xl overflow-hidden">
 
@@ -1974,9 +2886,7 @@ export default function FeedPage() {
 
               </div>
 
-              {/* ==================================================
-                  CONTENT
-              ================================================== */}
+              {/* CONTENT */}
 
               <div className="pt-4">
 
@@ -1992,9 +2902,7 @@ export default function FeedPage() {
                   }
                 </p>
 
-                {/* ==================================================
-                    ACTIONS
-                ================================================== */}
+                {/* ACTIONS */}
 
                 <div className="flex items-center gap-5 mb-4">
 
@@ -2046,17 +2954,14 @@ export default function FeedPage() {
 
                   <span className="[font-family:var(--font-mono)] text-[#ABA3C4] text-sm -ml-2">
                     {
-                      selectedPost
-                        .comments
+                      selectedPost.comments
                         .length
                     }
                   </span>
 
                 </div>
 
-                {/* ==================================================
-                    COMMENT INPUT
-                ================================================== */}
+                {/* COMMENT INPUT */}
 
                 {commentInputs[
                   selectedPost.id
@@ -2065,7 +2970,9 @@ export default function FeedPage() {
                     type="text"
                     placeholder="Write a comment…"
                     className="w-full rounded-full bg-[#262238] border border-white/5 px-4 py-2.5 mb-3 text-sm text-[#F5F1EA] placeholder:text-[#ABA3C4] focus:outline-none focus:ring-2 focus:ring-[#9D8DF1]/50"
-                    onKeyDown={(e) => {
+                    onKeyDown={(
+                      e
+                    ) => {
                       if (
                         e.key ===
                         "Enter"
@@ -2083,12 +2990,9 @@ export default function FeedPage() {
                   />
                 )}
 
-                {/* ==================================================
-                    ALL COMMENTS
-                ================================================== */}
+                {/* ALL COMMENTS */}
 
-                {selectedPost
-                  .comments
+                {selectedPost.comments
                   .length >
                   0 && (
                   <div className="mt-4 border-t border-white/5 pt-4 space-y-2.5">
@@ -2108,7 +3012,9 @@ export default function FeedPage() {
 
                           <Avatar
                             src={
-                              comment.profilePic
+                              getProfileImageUrl(
+                                comment.profilePic
+                              )
                             }
                             name={
                               comment.user
@@ -2142,6 +3048,7 @@ export default function FeedPage() {
           </div>
         </div>
       )}
+
     </main>
   );
 }

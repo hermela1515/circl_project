@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
 import {
   Fraunces,
   Inter,
@@ -21,10 +22,13 @@ import {
   FaCheckDouble,
   FaPhone,
   FaVideo,
-  FaInfoCircle,
   FaTimes,
   FaChevronLeft,
 } from "react-icons/fa";
+
+/* ============================================================
+   FONTS
+============================================================ */
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -45,62 +49,53 @@ const mono = JetBrains_Mono({
 });
 
 /* ============================================================
-   DEFAULT CONVERSATIONS
+   API CONFIGURATION
 ============================================================ */
 
-const DEFAULT_CONVERSATIONS = [
-  {
-    id: 1,
-    name: "Alice",
-    username: "alice",
-    lastMessage: "Hey! How are you?",
-    profilePic: "/images/user1.jpg",
-    flag: "🇯🇵",
-    online: true,
-    unread: 2,
-  },
-  {
-    id: 2,
-    name: "Bob",
-    username: "bob",
-    lastMessage: "Did you see the news?",
-    profilePic: "/images/user2.jpg",
-    flag: "🇧🇷",
-    online: false,
-    unread: 0,
-  },
-  {
-    id: 3,
-    name: "Charlie",
-    username: "charlie",
-    lastMessage: "Let's catch up tomorrow.",
-    profilePic: "/images/user3.jpg",
-    flag: "🇩🇪",
-    online: true,
-    unread: 1,
-  },
-  {
-    id: 4,
-    name: "Maya",
-    username: "maya",
-    lastMessage: "That sounds amazing!",
-    profilePic: "/images/user4.jpg",
-    flag: "🇮🇳",
-    online: true,
-    unread: 0,
-  },
-];
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000"
+)
+  .replace(/\/+$/, "")
+  .replace(/\/api$/, "");
 
 /* ============================================================
-   HELPER
+   HELPER - IMAGE URL
+============================================================ */
+
+function getImageUrl(profilePic) {
+  if (!profilePic) {
+    return "/images/default-avatar.png";
+  }
+
+  if (
+    profilePic.startsWith("http://") ||
+    profilePic.startsWith("https://")
+  ) {
+    return profilePic;
+  }
+
+  if (profilePic.startsWith("/")) {
+    return `${API_URL}${profilePic}`;
+  }
+
+  return profilePic;
+}
+
+/* ============================================================
+   HELPER - FORMAT TIME
 ============================================================ */
 
 function formatTime(date) {
-  if (!date) return "";
+  if (!date) {
+    return "";
+  }
 
   const d = new Date(date);
 
-  if (Number.isNaN(d.getTime())) return "";
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
 
   return d.toLocaleTimeString([], {
     hour: "2-digit",
@@ -109,279 +104,1509 @@ function formatTime(date) {
 }
 
 /* ============================================================
+   HELPER - FORMAT DATE
+============================================================ */
+
+function formatMessageDate(date) {
+  if (!date) {
+    return "";
+  }
+
+  const d = new Date(date);
+
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
+
+  const today = new Date();
+
+  const isToday =
+    d.getDate() === today.getDate() &&
+    d.getMonth() === today.getMonth() &&
+    d.getFullYear() === today.getFullYear();
+
+  if (isToday) {
+    return "Today";
+  }
+
+  return d.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/* ============================================================
+   HELPER - GET USER ID
+============================================================ */
+
+function getUserId(user) {
+  if (!user) {
+    return null;
+  }
+
+  if (typeof user === "string") {
+    return user;
+  }
+
+  return (
+    user._id ||
+    user.id ||
+    user.userId ||
+    null
+  );
+}
+
+/* ============================================================
    PAGE
 ============================================================ */
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
   /* ==========================================================
+     TARGET USER
+  ========================================================== */
+
+  const targetUserId =
+    searchParams.get("userId");
+
+  /* ==========================================================
      CURRENT USER
   ========================================================== */
 
-  const [currentUser, setCurrentUser] = useState({
-    username: "John Doe",
-    profilePic: "/images/default-profile.jpg",
-  });
+  const [currentUser, setCurrentUser] =
+    useState(null);
+
+  /* ==========================================================
+     FOLLOWING USERS
+     
+     These are the users YOU FOLLOW.
+     
+     They will appear even when you
+     have never messaged them.
+  ========================================================== */
+
+  const [followingUsers, setFollowingUsers] =
+    useState([]);
+
+  const [loadingFollowing, setLoadingFollowing] =
+    useState(true);
 
   /* ==========================================================
      CONVERSATIONS
   ========================================================== */
 
-  const [conversations, setConversations] = useState(
-    DEFAULT_CONVERSATIONS
-  );
+  const [conversations, setConversations] =
+    useState([]);
 
-  const [selectedConversation, setSelectedConversation] =
-    useState(DEFAULT_CONVERSATIONS[0]);
+  const [
+    selectedConversation,
+    setSelectedConversation,
+  ] = useState(null);
+
+  /* ==========================================================
+     TEMPORARY NEW CONVERSATION USER
+  ========================================================== */
+
+  const [
+    newConversationUser,
+    setNewConversationUser,
+  ] = useState(null);
 
   /* ==========================================================
      MESSAGES
   ========================================================== */
 
-  const [messagesByConversation, setMessagesByConversation] =
-    useState({});
+  const [
+    messagesByConversation,
+    setMessagesByConversation,
+  ] = useState({});
+
+  /* ==========================================================
+     UI STATE
+  ========================================================== */
 
   const [input, setInput] = useState("");
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] =
+    useState("");
 
-  const [mobileShowChat, setMobileShowChat] = useState(false);
-
-  const [showConversationMenu, setShowConversationMenu] =
+  const [mobileShowChat, setMobileShowChat] =
     useState(false);
 
+  const [
+    showConversationMenu,
+    setShowConversationMenu,
+  ] = useState(false);
+
+  const [
+    loadingConversations,
+    setLoadingConversations,
+  ] = useState(true);
+
+  const [loadingMessages, setLoadingMessages] =
+    useState(false);
+
+  const [
+    loadingTargetUser,
+    setLoadingTargetUser,
+  ] = useState(false);
+
+  const [sending, setSending] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
   /* ==========================================================
-     LOAD DATA
+     GET TOKEN
   ========================================================== */
 
-  useEffect(() => {
-    try {
-      const savedUser = JSON.parse(
-        localStorage.getItem("currentUser")
-      );
+  const getToken = () => {
+    if (typeof window === "undefined") {
+      return null;
+    }
 
-      if (savedUser) {
-        setCurrentUser({
-          username:
-            savedUser.username ||
-            savedUser.name ||
-            "User",
-          profilePic:
-            savedUser.profilePic ||
-            "/images/default-profile.jpg",
-        });
+    return (
+      localStorage.getItem("token") ||
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("accessToken")
+    );
+  };
+
+  /* ==========================================================
+     API REQUEST HELPER
+  ========================================================== */
+
+  const apiRequest = async (
+    endpoint,
+    options = {}
+  ) => {
+    const token = getToken();
+
+    if (!token) {
+      router.push("/login");
+
+      throw new Error(
+        "Authentication required"
+      );
+    }
+
+    const cleanEndpoint =
+      endpoint.startsWith("/api/")
+        ? endpoint
+        : `/api${
+            endpoint.startsWith("/")
+              ? endpoint
+              : `/${endpoint}`
+          }`;
+
+    const response = await fetch(
+      `${API_URL}${cleanEndpoint}`,
+      {
+        ...options,
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          ...(options.headers || {}),
+
+          Authorization:
+            `Bearer ${token}`,
+        },
+
+        cache: "no-store",
       }
+    );
 
-      const savedConversations = JSON.parse(
-        localStorage.getItem("circlConversations")
-      );
+    let data = null;
 
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
       if (
-        Array.isArray(savedConversations) &&
-        savedConversations.length
+        response.status === 401 ||
+        response.status === 403
       ) {
-        setConversations(savedConversations);
+        localStorage.removeItem("token");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("currentUser");
 
-        setSelectedConversation(
-          savedConversations[0]
+        router.push("/login");
+
+        throw new Error(
+          "Your session has expired. Please log in again."
         );
       }
 
-      const savedMessages = JSON.parse(
-        localStorage.getItem("circlMessages")
+      throw new Error(
+        data?.message ||
+          data?.error ||
+          `Request failed (${response.status})`
+      );
+    }
+
+    return data;
+  };
+
+  /* ==========================================================
+     LOAD CURRENT USER
+  ========================================================== */
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCurrentUser =
+      async () => {
+        try {
+          const token = getToken();
+
+          if (!token) {
+            router.push("/login");
+            return;
+          }
+
+          const savedUser =
+            localStorage.getItem(
+              "currentUser"
+            );
+
+          if (savedUser) {
+            try {
+              const parsedUser =
+                JSON.parse(
+                  savedUser
+                );
+
+              if (mounted) {
+                setCurrentUser({
+                  id:
+                    parsedUser.id ||
+                    parsedUser._id,
+
+                  username:
+                    parsedUser.username ||
+                    parsedUser.name ||
+                    "User",
+
+                  email:
+                    parsedUser.email ||
+                    "",
+
+                  profilePic:
+                    parsedUser.profilePic ||
+                    "/images/default-avatar.png",
+
+                  bio:
+                    parsedUser.bio ||
+                    "",
+                });
+              }
+            } catch (error) {
+              console.error(
+                "Could not parse saved user:",
+                error
+              );
+            }
+          }
+
+          try {
+            const data =
+              await apiRequest(
+                "/users/me"
+              );
+
+            const backendUser =
+              data?.user ||
+              data?.profile ||
+              data?.data;
+
+            if (
+              backendUser &&
+              mounted
+            ) {
+              const normalizedUser =
+                {
+                  id:
+                    backendUser._id ||
+                    backendUser.id,
+
+                  username:
+                    backendUser.username ||
+                    backendUser.name ||
+                    "User",
+
+                  email:
+                    backendUser.email ||
+                    "",
+
+                  profilePic:
+                    backendUser.profilePic ||
+                    backendUser.profilePicture ||
+                    "/images/default-avatar.png",
+
+                  bio:
+                    backendUser.bio ||
+                    "",
+                };
+
+              setCurrentUser(
+                normalizedUser
+              );
+
+              localStorage.setItem(
+                "currentUser",
+                JSON.stringify(
+                  backendUser
+                )
+              );
+            }
+          } catch (error) {
+            console.error(
+              "Failed to refresh current user:",
+              error
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Error loading current user:",
+            error
+          );
+
+          router.push("/login");
+        }
+      };
+
+    loadCurrentUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router]);
+
+  /* ==========================================================
+     LOAD FOLLOWING USERS
+
+     GET /api/users/:id/following
+  ========================================================== */
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      return;
+    }
+
+    let mounted = true;
+
+    const loadFollowingUsers =
+      async () => {
+        try {
+          setLoadingFollowing(true);
+
+          const data =
+            await apiRequest(
+              `/users/${currentUser.id}/following`
+            );
+
+          console.log(
+            "Following response:",
+            data
+          );
+
+          /*
+           * Support several possible
+           * response formats.
+           */
+
+          const users =
+            Array.isArray(
+              data?.following
+            )
+              ? data.following
+              : Array.isArray(
+                  data?.users
+                )
+              ? data.users
+              : Array.isArray(
+                  data?.data
+                )
+              ? data.data
+              : Array.isArray(data)
+              ? data
+              : [];
+
+          /*
+           * Normalize users.
+           *
+           * Also make sure the current
+           * user never appears.
+           */
+
+          const normalizedUsers =
+            users
+              .map((user) => ({
+                _id:
+                  user?._id ||
+                  user?.id,
+
+                username:
+                  user?.username ||
+                  user?.name ||
+                  user?.fullName ||
+                  "User",
+
+                profilePic:
+                  user?.profilePic ||
+                  user?.profilePicture ||
+                  user?.avatar ||
+                  "/images/default-avatar.png",
+
+                bio:
+                  user?.bio ||
+                  "",
+              }))
+              .filter((user) => {
+                if (!user._id) {
+                  return false;
+                }
+
+                return (
+                  user._id.toString() !==
+                  currentUser.id.toString()
+                );
+              });
+
+          if (mounted) {
+            setFollowingUsers(
+              normalizedUsers
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Load following users error:",
+            error
+          );
+
+          /*
+           * Don't destroy the messages page
+           * if the following request fails.
+           */
+
+          if (mounted) {
+            setFollowingUsers([]);
+          }
+        } finally {
+          if (mounted) {
+            setLoadingFollowing(false);
+          }
+        }
+      };
+
+    loadFollowingUsers();
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser?.id]);
+
+  /* ==========================================================
+     LOAD CONVERSATIONS
+  ========================================================== */
+
+  const loadConversations =
+    async () => {
+      try {
+        setLoadingConversations(true);
+
+        setError("");
+
+        const data =
+          await apiRequest(
+            "/messages/conversations"
+          );
+
+        console.log(
+          "Conversations response:",
+          data
+        );
+
+        if (
+          data?.success &&
+          Array.isArray(
+            data.conversations
+          )
+        ) {
+          setConversations(
+            data.conversations
+          );
+
+          /*
+           * Only automatically select
+           * an existing conversation if
+           * there is no target user.
+           */
+
+          if (
+            !targetUserId &&
+            data.conversations.length > 0
+          ) {
+            setSelectedConversation(
+              data.conversations[0]
+            );
+          }
+        } else if (
+          Array.isArray(
+            data?.conversations
+          )
+        ) {
+          setConversations(
+            data.conversations
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Load conversations error:",
+          error
+        );
+
+        setError(
+          error?.message ||
+            "Failed to load conversations."
+        );
+      } finally {
+        setLoadingConversations(false);
+      }
+    };
+
+  /* ==========================================================
+     INITIAL LOAD
+  ========================================================== */
+
+  useEffect(() => {
+    const token = getToken();
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    loadConversations();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetUserId]);
+
+  /* ==========================================================
+     GET OTHER PARTICIPANT
+  ========================================================== */
+
+  const getOtherParticipant = (
+    conversation
+  ) => {
+    if (
+      !conversation ||
+      !Array.isArray(
+        conversation.participants
+      )
+    ) {
+      return null;
+    }
+
+    if (!currentUser) {
+      return (
+        conversation.participants[0] ||
+        null
+      );
+    }
+
+    const currentUserId =
+      currentUser.id?.toString();
+
+    return (
+      conversation.participants.find(
+        (participant) => {
+          const participantId =
+            getUserId(
+              participant
+            )?.toString();
+
+          return (
+            participantId !==
+            currentUserId
+          );
+        }
+      ) || null
+    );
+  };
+
+  /* ==========================================================
+     FIND EXISTING CONVERSATION WITH USER
+  ========================================================== */
+
+  const findConversationWithUser =
+    (userId) => {
+      if (!userId) {
+        return null;
+      }
+
+      return (
+        conversations.find(
+          (conversation) => {
+            if (
+              !Array.isArray(
+                conversation.participants
+              )
+            ) {
+              return false;
+            }
+
+            return conversation.participants.some(
+              (participant) =>
+                getUserId(
+                  participant
+                )?.toString() ===
+                userId.toString()
+            );
+          }
+        ) || null
+      );
+    };
+
+  /* ==========================================================
+     CREATE TEMPORARY CONVERSATION
+  ========================================================== */
+
+  const createTemporaryConversation =
+    (user) => {
+      if (!user) {
+        return null;
+      }
+
+      return {
+        _id: `new-${user._id}`,
+
+        isNewConversation: true,
+
+        targetUser: user,
+
+        participants: [
+          {
+            _id: currentUser?.id,
+
+            username:
+              currentUser?.username ||
+              "User",
+
+            profilePic:
+              currentUser?.profilePic ||
+              "/images/default-avatar.png",
+          },
+
+          user,
+        ],
+
+        lastMessage: "",
+      };
+    };
+
+  /* ==========================================================
+     CONVERSATION DISPLAY DATA
+  ========================================================== */
+
+  const getConversationDisplayData =
+    (conversation) => {
+      /*
+       * Temporary conversation.
+       */
+
+      if (
+        conversation?.isNewConversation &&
+        conversation?.targetUser
+      ) {
+        const target =
+          conversation.targetUser;
+
+        return {
+          id: null,
+
+          name:
+            target.username ||
+            target.name ||
+            "User",
+
+          username:
+            target.username ||
+            "user",
+
+          lastMessage: "",
+
+          profilePic:
+            target.profilePic ||
+            "/images/default-avatar.png",
+
+          online: false,
+
+          unread: 0,
+
+          otherUserId:
+            target._id ||
+            target.id,
+        };
+      }
+
+      const otherUser =
+        getOtherParticipant(
+          conversation
+        );
+
+      return {
+        id:
+          conversation?._id ||
+          conversation?.id,
+
+        name:
+          otherUser?.username ||
+          otherUser?.name ||
+          "Unknown user",
+
+        username:
+          otherUser?.username ||
+          otherUser?.name ||
+          "unknown",
+
+        lastMessage:
+          conversation?.lastMessage ||
+          conversation?.lastMessageText ||
+          "",
+
+        profilePic:
+          otherUser?.profilePic ||
+          otherUser?.profilePicture ||
+          "/images/default-avatar.png",
+
+        online: false,
+
+        unread:
+          conversation?.unreadCount ||
+          0,
+
+        otherUserId:
+          otherUser?._id ||
+          otherUser?.id,
+      };
+    };
+
+  /* ==========================================================
+     BUILD SIDEBAR USERS
+
+     THIS IS THE IMPORTANT PART.
+
+     Every followed user appears.
+
+     If a conversation exists:
+       → show the real conversation.
+
+     If no conversation exists:
+       → show a temporary conversation.
+  ========================================================== */
+
+  const sidebarConversations =
+    useMemo(() => {
+      const result = [];
+
+      /*
+       * First add FOLLOWED USERS.
+       */
+
+      followingUsers.forEach(
+        (user) => {
+          const userId =
+            getUserId(user);
+
+          if (!userId) {
+            return;
+          }
+
+          const existingConversation =
+            findConversationWithUser(
+              userId
+            );
+
+          if (
+            existingConversation
+          ) {
+            /*
+             * Existing conversation
+             * gets priority.
+             */
+
+            result.push(
+              existingConversation
+            );
+          } else {
+            /*
+             * No conversation yet.
+             *
+             * Create temporary item.
+             */
+
+            result.push(
+              createTemporaryConversation(
+                user
+              )
+            );
+          }
+        }
       );
 
-      if (savedMessages) {
-        setMessagesByConversation(savedMessages);
+      /*
+       * Add existing conversations
+       * with people you don't currently
+       * follow.
+       *
+       * This keeps old conversations
+       * visible.
+       */
+
+      conversations.forEach(
+        (conversation) => {
+          const display =
+            getConversationDisplayData(
+              conversation
+            );
+
+          const alreadyAdded =
+            result.some((item) => {
+              const itemDisplay =
+                getConversationDisplayData(
+                  item
+                );
+
+              return (
+                itemDisplay.otherUserId
+                  ?.toString() ===
+                display.otherUserId?.toString()
+              );
+            });
+
+          if (!alreadyAdded) {
+            result.push(conversation);
+          }
+        }
+      );
+
+      return result;
+    }, [
+      followingUsers,
+      conversations,
+      currentUser,
+    ]);
+
+  /* ==========================================================
+     FIND / OPEN TARGET USER
+     
+     /messages?userId=USER_ID
+  ========================================================== */
+
+  useEffect(() => {
+    if (
+      !targetUserId ||
+      !currentUser ||
+      loadingConversations
+    ) {
+      return;
+    }
+
+    /*
+     * Don't message yourself.
+     */
+
+    if (
+      targetUserId.toString() ===
+      currentUser.id?.toString()
+    ) {
+      router.replace("/messages");
+      return;
+    }
+
+    /*
+     * Existing conversation?
+     */
+
+    const existingConversation =
+      findConversationWithUser(
+        targetUserId
+      );
+
+    if (existingConversation) {
+      setNewConversationUser(null);
+
+      setSelectedConversation(
+        existingConversation
+      );
+
+      setMobileShowChat(true);
+
+      return;
+    }
+
+    /*
+     * Maybe this user is already
+     * in our following list.
+     */
+
+    const followedUser =
+      followingUsers.find(
+        (user) =>
+          getUserId(
+            user
+          )?.toString() ===
+          targetUserId.toString()
+      );
+
+    if (followedUser) {
+      const temporaryConversation =
+        createTemporaryConversation(
+          followedUser
+        );
+
+      setNewConversationUser(
+        followedUser
+      );
+
+      setSelectedConversation(
+        temporaryConversation
+      );
+
+      setMobileShowChat(true);
+
+      return;
+    }
+
+    /*
+     * If the user is not in the
+     * following list, load their
+     * profile directly.
+     */
+
+    const loadTargetUser =
+      async () => {
+        try {
+          setLoadingTargetUser(true);
+
+          setError("");
+
+          const data =
+            await apiRequest(
+              `/users/${targetUserId}`
+            );
+
+          console.log(
+            "Target user response:",
+            data
+          );
+
+          const user =
+            data?.user ||
+            data?.profile ||
+            data?.data ||
+            data;
+
+          const userId =
+            user?._id ||
+            user?.id;
+
+          if (!userId) {
+            throw new Error(
+              "Could not find this user."
+            );
+          }
+
+          const normalizedUser =
+            {
+              _id: userId,
+
+              username:
+                user.username ||
+                user.name ||
+                user.fullName ||
+                "User",
+
+              profilePic:
+                user.profilePic ||
+                user.profilePicture ||
+                user.avatar ||
+                "/images/default-avatar.png",
+
+              bio:
+                user.bio ||
+                "",
+            };
+
+          setNewConversationUser(
+            normalizedUser
+          );
+
+          const temporaryConversation =
+            createTemporaryConversation(
+              normalizedUser
+            );
+
+          setSelectedConversation(
+            temporaryConversation
+          );
+
+          setMobileShowChat(true);
+        } catch (error) {
+          console.error(
+            "Load target user error:",
+            error
+          );
+
+          setError(
+            error?.message ||
+              "Could not open this user's profile."
+          );
+        } finally {
+          setLoadingTargetUser(false);
+        }
+      };
+
+    loadTargetUser();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    targetUserId,
+    currentUser,
+    loadingConversations,
+    followingUsers,
+    conversations,
+  ]);
+
+  /* ==========================================================
+     LOAD MESSAGES
+  ========================================================== */
+
+  const loadMessages = async (
+    conversation
+  ) => {
+    if (
+      !conversation?._id ||
+      conversation.isNewConversation
+    ) {
+      return;
+    }
+
+    try {
+      setLoadingMessages(true);
+
+      setError("");
+
+      const data =
+        await apiRequest(
+          `/messages/conversations/${conversation._id}`
+        );
+
+      console.log(
+        "Messages response:",
+        data
+      );
+
+      const backendMessages =
+        data?.messages ||
+        data?.data ||
+        [];
+
+      if (
+        Array.isArray(
+          backendMessages
+        )
+      ) {
+        setMessagesByConversation(
+          (previous) => ({
+            ...previous,
+
+            [conversation._id]:
+              backendMessages,
+          })
+        );
+      }
+
+      try {
+        await apiRequest(
+          `/messages/conversations/${conversation._id}/read`,
+          {
+            method: "PATCH",
+          }
+        );
+      } catch (readError) {
+        console.warn(
+          "Could not mark messages as read:",
+          readError
+        );
       }
     } catch (error) {
       console.error(
-        "Error loading messages:",
+        "Load messages error:",
         error
       );
-    }
-  }, []);
 
-  /* ==========================================================
-     SAVE CONVERSATIONS
-  ========================================================== */
-
-  useEffect(() => {
-    if (conversations.length) {
-      localStorage.setItem(
-        "circlConversations",
-        JSON.stringify(conversations)
+      setError(
+        error?.message ||
+          "Failed to load messages."
       );
+    } finally {
+      setLoadingMessages(false);
     }
-  }, [conversations]);
-
-  /* ==========================================================
-     SAVE MESSAGES
-  ========================================================== */
-
-  useEffect(() => {
-    localStorage.setItem(
-      "circlMessages",
-      JSON.stringify(messagesByConversation)
-    );
-  }, [messagesByConversation]);
-
-  /* ==========================================================
-     DEFAULT MESSAGES
-  ========================================================== */
-
-  const getMessages = (conversation) => {
-    if (!conversation) return [];
-
-    const existing =
-      messagesByConversation[conversation.id];
-
-    if (existing) {
-      return existing;
-    }
-
-    return [
-      {
-        id: `${conversation.id}-1`,
-        sender: conversation.name,
-        text: conversation.lastMessage,
-        createdAt: new Date(
-          Date.now() - 1000 * 60 * 12
-        ).toISOString(),
-        status: "read",
-      },
-      {
-        id: `${conversation.id}-2`,
-        sender: "Me",
-        text: "I'm good, thanks! 😊",
-        createdAt: new Date(
-          Date.now() - 1000 * 60 * 10
-        ).toISOString(),
-        status: "read",
-      },
-    ];
   };
 
-  const currentMessages = getMessages(
-    selectedConversation
-  );
+  /* ==========================================================
+     LOAD MESSAGES WHEN CONVERSATION CHANGES
+  ========================================================== */
+
+  useEffect(() => {
+    if (!selectedConversation) {
+      return;
+    }
+
+    if (
+      selectedConversation.isNewConversation
+    ) {
+      setLoadingMessages(false);
+      return;
+    }
+
+    loadMessages(
+      selectedConversation
+    );
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedConversation?._id,
+  ]);
+
+  /* ==========================================================
+     CURRENT MESSAGES
+  ========================================================== */
+
+  const currentMessages =
+    selectedConversation &&
+    !selectedConversation.isNewConversation
+      ? messagesByConversation[
+          selectedConversation._id
+        ] || []
+      : [];
 
   /* ==========================================================
      SCROLL TO BOTTOM
   ========================================================== */
 
   useEffect(() => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-      });
-    }, 100);
+    const timeout =
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView(
+          {
+            behavior: "smooth",
+          }
+        );
+      }, 100);
+
+    return () =>
+      clearTimeout(timeout);
   }, [
-    selectedConversation,
+    selectedConversation?._id,
     currentMessages.length,
   ]);
 
   /* ==========================================================
      SEARCH
+
+     Search both followed users and
+     existing conversations.
   ========================================================== */
 
-  const filteredConversations = useMemo(() => {
-    const query = searchQuery
-      .trim()
-      .toLowerCase();
+  const filteredConversations =
+    useMemo(() => {
+      const query =
+        searchQuery
+          .trim()
+          .toLowerCase();
 
-    if (!query) return conversations;
+      if (!query) {
+        return sidebarConversations;
+      }
 
-    return conversations.filter((conversation) => {
-      return (
-        conversation.name
-          .toLowerCase()
-          .includes(query) ||
-        conversation.username
-          .toLowerCase()
-          .includes(query) ||
-        conversation.lastMessage
-          .toLowerCase()
-          .includes(query)
+      return sidebarConversations.filter(
+        (conversation) => {
+          const display =
+            getConversationDisplayData(
+              conversation
+            );
+
+          return (
+            display.name
+              .toLowerCase()
+              .includes(query) ||
+            display.username
+              .toLowerCase()
+              .includes(query) ||
+            display.lastMessage
+              .toLowerCase()
+              .includes(query)
+          );
+        }
       );
-    });
-  }, [conversations, searchQuery]);
+    }, [
+      sidebarConversations,
+      searchQuery,
+    ]);
 
   /* ==========================================================
      SELECT CONVERSATION
   ========================================================== */
 
-  const handleSelectConversation = (
-    conversation
-  ) => {
-    setSelectedConversation(conversation);
+  const handleSelectConversation =
+    (conversation) => {
+      setNewConversationUser(
+        conversation?.isNewConversation
+          ? conversation.targetUser
+          : null
+      );
 
-    setMobileShowChat(true);
+      setSelectedConversation(
+        conversation
+      );
 
-    setShowConversationMenu(false);
+      setMobileShowChat(true);
 
-    setConversations((prev) =>
-      prev.map((item) =>
-        item.id === conversation.id
-          ? {
-              ...item,
-              unread: 0,
-            }
-          : item
-      )
-    );
-  };
+      setShowConversationMenu(
+        false
+      );
+
+      if (targetUserId) {
+        router.replace(
+          "/messages"
+        );
+      }
+    };
 
   /* ==========================================================
      SEND MESSAGE
   ========================================================== */
 
-  const handleSend = () => {
-    const text = input.trim();
+  const handleSend = async () => {
+    const text =
+      input.trim();
 
-    if (!text) return;
+    if (
+      !text ||
+      !selectedConversation ||
+      sending
+    ) {
+      return;
+    }
 
-    const newMessage = {
-      id:
-        Date.now().toString() +
-        Math.random().toString(36).slice(2),
-      sender: "Me",
-      text,
-      createdAt: new Date().toISOString(),
-      status: "sent",
-    };
+    const display =
+      getConversationDisplayData(
+        selectedConversation
+      );
 
-    setMessagesByConversation((prev) => ({
-      ...prev,
-      [selectedConversation.id]: [
-        ...(prev[selectedConversation.id] ||
-          getMessages(selectedConversation)),
-        newMessage,
-      ],
-    }));
+    if (!display.otherUserId) {
+      setError(
+        "Could not find the receiver."
+      );
 
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id ===
-        selectedConversation.id
-          ? {
-              ...conversation,
-              lastMessage: text,
-              unread: 0,
+      return;
+    }
+
+    try {
+      setSending(true);
+
+      setError("");
+
+      const data =
+        await apiRequest(
+          "/messages",
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              receiverId:
+                display.otherUserId,
+
+              text,
+            }),
+          }
+        );
+
+      console.log(
+        "Send message response:",
+        data
+      );
+
+      if (
+        data?.success &&
+        data?.message
+      ) {
+        const realConversation =
+          data.conversation;
+
+        /*
+         * Backend returned a populated
+         * conversation object.
+         */
+
+        if (
+          realConversation &&
+          typeof realConversation ===
+            "object" &&
+          realConversation._id
+        ) {
+          const conversationId =
+            realConversation._id;
+
+          setMessagesByConversation(
+            (previous) => ({
+              ...previous,
+
+              [conversationId]: [
+                ...(previous[
+                  conversationId
+                ] || []),
+
+                data.message,
+              ],
+            })
+          );
+
+          setConversations(
+            (previous) => {
+              const exists =
+                previous.some(
+                  (conversation) =>
+                    conversation._id ===
+                    conversationId
+                );
+
+              if (exists) {
+                return previous.map(
+                  (
+                    conversation
+                  ) =>
+                    conversation._id ===
+                    conversationId
+                      ? {
+                          ...conversation,
+                          ...realConversation,
+                        }
+                      : conversation
+                );
+              }
+
+              return [
+                realConversation,
+                ...previous,
+              ];
             }
-          : conversation
-      )
-    );
+          );
 
-    setInput("");
+          setSelectedConversation(
+            realConversation
+          );
+        } else {
+          /*
+           * Backend only returned
+           * conversation ID.
+           *
+           * Reload conversations.
+           */
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height =
-        "auto";
+          const refreshedData =
+            await apiRequest(
+              "/messages/conversations"
+            );
+
+          const refreshedConversations =
+            refreshedData?.conversations ||
+            [];
+
+          setConversations(
+            refreshedConversations
+          );
+
+          const newConversation =
+            refreshedConversations.find(
+              (conversation) =>
+                Array.isArray(
+                  conversation.participants
+                ) &&
+                conversation.participants.some(
+                  (participant) =>
+                    getUserId(
+                      participant
+                    )?.toString() ===
+                    display.otherUserId?.toString()
+                )
+            );
+
+          if (
+            newConversation
+          ) {
+            setSelectedConversation(
+              newConversation
+            );
+
+            /*
+             * Load the messages from
+             * the newly created conversation.
+             */
+
+            await loadMessages(
+              newConversation
+            );
+          }
+        }
+
+        /*
+         * Clear input.
+         */
+
+        setInput("");
+
+        if (textareaRef.current) {
+          textareaRef.current.style.height =
+            "auto";
+        }
+
+        /*
+         * Remove ?userId=...
+         */
+
+        router.replace(
+          "/messages"
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Send message error:",
+        error
+      );
+
+      setError(
+        error?.message ||
+          "Failed to send message."
+      );
+    } finally {
+      setSending(false);
     }
   };
 
@@ -395,6 +1620,7 @@ export default function MessagesPage() {
       !e.shiftKey
     ) {
       e.preventDefault();
+
       handleSend();
     }
   };
@@ -403,48 +1629,142 @@ export default function MessagesPage() {
      AUTO RESIZE TEXTAREA
   ========================================================== */
 
-  const handleInputChange = (e) => {
-    setInput(e.target.value);
+  const handleInputChange =
+    (e) => {
+      setInput(
+        e.target.value
+      );
 
-    e.target.style.height = "auto";
+      e.target.style.height =
+        "auto";
 
-    e.target.style.height = `${Math.min(
-      e.target.scrollHeight,
-      120
-    )}px`;
-  };
+      e.target.style.height =
+        `${Math.min(
+          e.target.scrollHeight,
+          120
+        )}px`;
+    };
 
   /* ==========================================================
-     BACK TO CONVERSATIONS ON MOBILE
+     MOBILE BACK
   ========================================================== */
 
-  const handleMobileBack = () => {
-    setMobileShowChat(false);
-  };
+  const handleMobileBack =
+    () => {
+      setMobileShowChat(false);
+    };
 
   /* ==========================================================
      CLEAR CHAT
   ========================================================== */
 
-  const handleClearChat = () => {
-    setMessagesByConversation((prev) => ({
-      ...prev,
-      [selectedConversation.id]: [],
-    }));
+  const handleClearChat =
+    async () => {
+      if (
+        !selectedConversation ||
+        selectedConversation.isNewConversation
+      ) {
+        return;
+      }
 
-    setShowConversationMenu(false);
-  };
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to clear this conversation?"
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setError("");
+
+        await apiRequest(
+          `/messages/conversations/${selectedConversation._id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+        setMessagesByConversation(
+          (previous) => ({
+            ...previous,
+
+            [selectedConversation._id]:
+              [],
+          })
+        );
+
+        setConversations(
+          (previous) =>
+            previous.map(
+              (conversation) =>
+                conversation._id ===
+                selectedConversation._id
+                  ? {
+                      ...conversation,
+
+                      lastMessage:
+                        "",
+
+                      lastMessageSender:
+                        null,
+
+                      lastMessageAt:
+                        null,
+                    }
+                  : conversation
+            )
+        );
+
+        /*
+         * If this person is followed,
+         * the sidebar will automatically
+         * turn them back into a temporary
+         * "No messages yet" entry.
+         */
+
+        setSelectedConversation(
+          null
+        );
+
+        setShowConversationMenu(
+          false
+        );
+      } catch (error) {
+        console.error(
+          "Clear conversation error:",
+          error
+        );
+
+        setError(
+          error?.message ||
+            "Failed to clear conversation."
+        );
+      }
+    };
 
   /* ==========================================================
-     RENDER
+     SELECTED DISPLAY
   ========================================================== */
+
+  const selectedDisplay =
+    selectedConversation
+      ? getConversationDisplayData(
+          selectedConversation
+        )
+      : null;
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
     <main
       className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] relative overflow-hidden text-[#F5F1EA]`}
     >
       {/* ======================================================
-          BACKGROUND DECORATION
+          BACKGROUND
       ====================================================== */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.06]">
@@ -460,7 +1780,9 @@ export default function MessagesPage() {
       ====================================================== */}
 
       <button
-        onClick={() => router.back()}
+        onClick={() =>
+          router.back()
+        }
         className="fixed top-4 left-4 z-50 bg-[#1E1A2E]/90 hover:bg-[#262238] border border-white/5 text-[#F5F1EA] p-2.5 sm:p-3 rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm"
         title="Go back"
       >
@@ -468,15 +1790,14 @@ export default function MessagesPage() {
       </button>
 
       {/* ======================================================
-          MAIN CONTAINER
+          MAIN
       ====================================================== */}
 
       <div className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 pt-16 sm:pt-20 pb-4 h-screen">
-
         <div className="h-[calc(100vh-5rem)] lg:h-[calc(100vh-6rem)] flex gap-3 sm:gap-5">
 
           {/* ==================================================
-              CONVERSATIONS SIDEBAR
+              SIDEBAR
           ================================================== */}
 
           <aside
@@ -495,13 +1816,10 @@ export default function MessagesPage() {
               overflow-hidden
             `}
           >
-
-            {/* Sidebar header */}
+            {/* HEADER */}
 
             <div className="p-4 sm:p-5 border-b border-white/5">
-
               <div className="flex items-center justify-between mb-4">
-
                 <div>
                   <p className="[font-family:var(--font-mono)] text-[9px] uppercase tracking-[0.18em] text-[#9D8DF1]">
                     Circl
@@ -516,25 +1834,26 @@ export default function MessagesPage() {
                   href="/profile"
                   className="rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] via-[#FFC145] to-[#9D8DF1] hover:scale-105 transition"
                 >
-                  <Image
-                    src={
-                      currentUser.profilePic
-                    }
-                    alt={
-                      currentUser.username
-                    }
-                    width={42}
-                    height={42}
-                    className="w-[42px] h-[42px] rounded-full object-cover border-2 border-[#1E1A2E]"
-                  />
+                  {currentUser && (
+                    <Image
+                      src={getImageUrl(
+                        currentUser.profilePic
+                      )}
+                      alt={
+                        currentUser.username
+                      }
+                      width={42}
+                      height={42}
+                      unoptimized
+                      className="w-[42px] h-[42px] rounded-full object-cover border-2 border-[#1E1A2E]"
+                    />
+                  )}
                 </Link>
-
               </div>
 
-              {/* Search */}
+              {/* SEARCH */}
 
               <div className="relative">
-
                 <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-[#ABA3C4] text-xs" />
 
                 <input
@@ -544,7 +1863,7 @@ export default function MessagesPage() {
                       e.target.value
                     )
                   }
-                  placeholder="Search conversations..."
+                  placeholder="Search people..."
                   className="w-full bg-[#262238] border border-white/5 rounded-2xl py-3 pl-10 pr-10 text-sm text-[#F5F1EA] placeholder:text-[#ABA3C4] focus:outline-none focus:ring-2 focus:ring-[#FF5C7C]/30 focus:border-[#FF5C7C]/30 transition"
                 />
 
@@ -558,184 +1877,193 @@ export default function MessagesPage() {
                     <FaTimes />
                   </button>
                 )}
-
               </div>
-
             </div>
 
-            {/* Your profile */}
+            {/* CURRENT USER */}
 
-            <Link
-              href="/profile"
-              className="mx-3 mt-3 p-3 rounded-2xl bg-gradient-to-r from-[#FF5C7C]/10 to-[#9D8DF1]/10 border border-white/5 hover:border-[#FF5C7C]/20 transition group"
-            >
+            {currentUser && (
+              <Link
+                href="/profile"
+                className="mx-3 mt-3 p-3 rounded-2xl bg-gradient-to-r from-[#FF5C7C]/10 to-[#9D8DF1]/10 border border-white/5 hover:border-[#FF5C7C]/20 transition group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Image
+                      src={getImageUrl(
+                        currentUser.profilePic
+                      )}
+                      alt={
+                        currentUser.username
+                      }
+                      width={42}
+                      height={42}
+                      unoptimized
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
 
-              <div className="flex items-center gap-3">
+                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#52D273] border-2 border-[#1E1A2E]" />
+                  </div>
 
-                <div className="relative">
+                  <div className="min-w-0">
+                    <p className="text-xs text-[#ABA3C4]">
+                      Signed in as
+                    </p>
 
-                  <Image
-                    src={
-                      currentUser.profilePic
-                    }
-                    alt={
-                      currentUser.username
-                    }
-                    width={42}
-                    height={42}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-
-                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#52D273] border-2 border-[#1E1A2E]" />
-
+                    <p className="text-sm font-semibold truncate group-hover:text-[#FF5C7C] transition">
+                      {
+                        currentUser.username
+                      }
+                    </p>
+                  </div>
                 </div>
+              </Link>
+            )}
 
-                <div className="min-w-0">
-
-                  <p className="text-xs text-[#ABA3C4]">
-                    Signed in as
-                  </p>
-
-                  <p className="text-sm font-semibold truncate group-hover:text-[#FF5C7C] transition">
-                    {currentUser.username}
-                  </p>
-
-                </div>
-
-              </div>
-
-            </Link>
-
-            {/* Conversation label */}
+            {/* LABEL */}
 
             <div className="px-4 pt-5 pb-2 flex items-center justify-between">
-
               <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wider">
-                Your circle
+                Following
               </p>
 
               <span className="text-[10px] text-[#ABA3C4]">
-                {conversations.length}
+                {followingUsers.length}
               </span>
-
             </div>
 
-            {/* Conversations */}
+            {/* ERROR */}
+
+            {error && (
+              <div className="mx-3 mb-2 px-3 py-2 rounded-xl bg-[#FF5C7C]/10 border border-[#FF5C7C]/20 text-xs text-[#FF8CA3]">
+                {error}
+              </div>
+            )}
+
+            {/* FOLLOWING / CONVERSATIONS */}
 
             <div className="flex-1 overflow-y-auto px-2.5 pb-3 space-y-1">
-
-              {filteredConversations.length ===
-              0 ? (
+              {loadingConversations ||
+              loadingFollowing ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-7 h-7 border-2 border-[#FF5C7C]/30 border-t-[#FF5C7C] rounded-full animate-spin" />
+                </div>
+              ) : filteredConversations.length ===
+                0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center px-6">
-
                   <div className="w-12 h-12 rounded-full bg-[#262238] flex items-center justify-center mb-3">
                     <FaSearch className="text-[#9D8DF1]" />
                   </div>
 
                   <p className="text-sm text-[#F5F1EA]">
-                    No conversations found
+                    {searchQuery
+                      ? "No people found"
+                      : "You aren't following anyone yet"}
                   </p>
 
                   <p className="text-xs text-[#ABA3C4] mt-1">
-                    Try another name.
+                    {searchQuery
+                      ? "Try another username."
+                      : "Follow someone to start messaging them."}
                   </p>
-
                 </div>
               ) : (
                 filteredConversations.map(
-                  (conversation) => (
-                    <button
-                      key={conversation.id}
-                      onClick={() =>
-                        handleSelectConversation(
-                          conversation
-                        )
-                      }
-                      className={`
-                        w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all
-                        ${
-                          selectedConversation.id ===
-                          conversation.id
-                            ? "bg-[#262238] border border-[#FF5C7C]/25"
-                            : "border border-transparent hover:bg-[#262238]/70"
+                  (conversation) => {
+                    const display =
+                      getConversationDisplayData(
+                        conversation
+                      );
+
+                    const isTemporary =
+                      conversation?.isNewConversation;
+
+                    return (
+                      <button
+                        key={
+                          conversation._id
                         }
-                      `}
-                    >
-
-                      {/* Avatar */}
-
-                      <div className="relative shrink-0">
-
-                        <Image
-                          src={
-                            conversation.profilePic
+                        onClick={() =>
+                          handleSelectConversation(
+                            conversation
+                          )
+                        }
+                        className={`
+                          w-full flex items-center gap-3 p-3 rounded-2xl text-left transition-all
+                          ${
+                            selectedConversation?._id ===
+                            conversation._id
+                              ? "bg-[#262238] border border-[#FF5C7C]/25"
+                              : "border border-transparent hover:bg-[#262238]/70"
                           }
-                          alt={
-                            conversation.name
-                          }
-                          width={48}
-                          height={48}
-                          className="w-11 h-11 rounded-full object-cover border-2 border-[#1E1A2E]"
-                        />
+                        `}
+                      >
+                        {/* AVATAR */}
 
-                        {conversation.online && (
-                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#52D273] border-2 border-[#1E1A2E]" />
-                        )}
-
-                      </div>
-
-                      {/* Info */}
-
-                      <div className="flex-1 min-w-0">
-
-                        <div className="flex items-center justify-between gap-2">
-
-                          <h3 className="font-semibold text-sm truncate">
-                            {conversation.name}
-                          </h3>
-
-                          {conversation.unread >
-                            0 && (
-                            <span className="shrink-0 min-w-5 h-5 px-1.5 rounded-full bg-[#FF5C7C] text-[#15121F] text-[10px] font-bold flex items-center justify-center">
-                              {conversation.unread >
-                              9
-                                ? "9+"
-                                : conversation.unread}
-                            </span>
-                          )}
-
-                        </div>
-
-                        <div className="flex items-center gap-1.5 mt-0.5">
-
-                          <span className="text-xs">
-                            {conversation.flag}
-                          </span>
-
-                          <p
-                            className={`text-xs truncate ${
-                              conversation.unread >
-                              0
-                                ? "text-[#F5F1EA] font-medium"
-                                : "text-[#ABA3C4]"
-                            }`}
-                          >
-                            {
-                              conversation.lastMessage
+                        <div className="relative shrink-0">
+                          <Image
+                            src={getImageUrl(
+                              display.profilePic
+                            )}
+                            alt={
+                              display.name
                             }
-                          </p>
+                            width={48}
+                            height={48}
+                            unoptimized
+                            className="w-11 h-11 rounded-full object-cover border-2 border-[#1E1A2E]"
+                          />
 
+                          {/* Small online-style
+                              indicator for
+                              followed users */}
+
+                          {isTemporary && (
+                            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#9D8DF1] border-2 border-[#1E1A2E]" />
+                          )}
                         </div>
 
-                      </div>
+                        {/* USER INFO */}
 
-                    </button>
-                  )
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-semibold text-sm truncate">
+                              {
+                                display.name
+                              }
+                            </h3>
+
+                            {!isTemporary &&
+                              conversation.lastMessageAt && (
+                                <span className="shrink-0 text-[8px] text-[#77718C]">
+                                  {formatTime(
+                                    conversation.lastMessageAt
+                                  )}
+                                </span>
+                              )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p
+                              className={`text-xs truncate ${
+                                isTemporary
+                                  ? "text-[#9D8DF1]"
+                                  : "text-[#ABA3C4]"
+                              }`}
+                            >
+                              {isTemporary
+                                ? "Start a conversation"
+                                : display.lastMessage ||
+                                  "No messages yet"}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  }
                 )
               )}
-
             </div>
-
           </aside>
 
           {/* ==================================================
@@ -756,396 +2084,456 @@ export default function MessagesPage() {
               rounded-3xl
               overflow-hidden
               flex-col
+              relative
             `}
           >
+            {!selectedConversation ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+                <div className="relative mb-5">
+                  <div className="absolute -inset-5 rounded-full bg-gradient-to-r from-[#FF5C7C]/10 via-[#FFC145]/10 to-[#9D8DF1]/10 blur-xl" />
 
-            {/* =================================================
-                CHAT HEADER
-            ================================================= */}
-
-            <div className="h-[72px] sm:h-[80px] shrink-0 px-3 sm:px-5 border-b border-white/5 flex items-center justify-between">
-
-              <div className="flex items-center gap-2.5 sm:gap-3">
-
-                {/* Mobile back */}
-
-                <button
-                  onClick={handleMobileBack}
-                  className="lg:hidden w-9 h-9 rounded-full bg-[#262238] flex items-center justify-center text-[#ABA3C4] hover:text-[#F5F1EA] transition"
-                >
-                  <FaChevronLeft className="text-xs" />
-                </button>
-
-                {/* Avatar */}
-
-                <div className="relative shrink-0">
-
-                  <Image
-                    src={
-                      selectedConversation.profilePic
-                    }
-                    alt={
-                      selectedConversation.name
-                    }
-                    width={46}
-                    height={46}
-                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover"
-                  />
-
-                  {selectedConversation.online && (
-                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#52D273] border-2 border-[#1E1A2E]" />
-                  )}
-
-                </div>
-
-                {/* User info */}
-
-                <div className="min-w-0">
-
-                  <div className="flex items-center gap-1.5">
-
-                    <h2 className="[font-family:var(--font-display)] font-semibold text-base sm:text-lg truncate">
-                      {selectedConversation.name}
-                    </h2>
-
-                    <span className="text-sm">
-                      {
-                        selectedConversation.flag
-                      }
-                    </span>
-
+                  <div className="relative w-20 h-20 rounded-full bg-[#262238] flex items-center justify-center">
+                    <FaPaperPlane className="text-2xl text-[#9D8DF1]" />
                   </div>
-
-                  <p className="[font-family:var(--font-mono)] text-[9px] sm:text-[10px] text-[#ABA3C4] mt-0.5">
-                    {selectedConversation.online
-                      ? "online now"
-                      : "offline"}
-                  </p>
-
                 </div>
 
+                <h2 className="[font-family:var(--font-display)] text-2xl font-semibold">
+                  Your messages
+                </h2>
+
+                <p className="text-sm text-[#ABA3C4] mt-2 max-w-sm">
+                  Select someone you follow
+                  to start chatting.
+                </p>
               </div>
+            ) : (
+              <>
+                {/* =================================================
+                    CHAT HEADER
+                ================================================= */}
 
-              {/* Header actions */}
-
-              <div className="flex items-center gap-1">
-
-                <button
-                  className="hidden sm:flex w-9 h-9 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
-                  title="Voice call"
-                >
-                  <FaPhone className="text-xs" />
-                </button>
-
-                <button
-                  className="hidden sm:flex w-9 h-9 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
-                  title="Video call"
-                >
-                  <FaVideo className="text-xs" />
-                </button>
-
-                <button
-                  onClick={() =>
-                    setShowConversationMenu(
-                      !showConversationMenu
-                    )
-                  }
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
-                  title="More"
-                >
-                  <FaEllipsisV className="text-xs" />
-                </button>
-
-              </div>
-
-              {/* More menu */}
-
-              {showConversationMenu && (
-                <div className="absolute top-[68px] right-4 sm:right-5 z-30 w-48 bg-[#262238] border border-white/10 rounded-2xl shadow-2xl p-1.5">
-
-                  <button
-                    onClick={handleClearChat}
-                    className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#FF5C7C] transition"
-                  >
-                    Clear conversation
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      setShowConversationMenu(
-                        false
-                      )
-                    }
-                    className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#F5F1EA] transition"
-                  >
-                    Close menu
-                  </button>
-
-                </div>
-              )}
-
-            </div>
-
-            {/* =================================================
-                CHAT BODY
-            ================================================= */}
-
-            <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-5 sm:py-6">
-
-              {/* Date separator */}
-
-              <div className="flex items-center gap-3 mb-6">
-
-                <div className="h-px flex-1 bg-white/5" />
-
-                <span className="[font-family:var(--font-mono)] text-[9px] uppercase tracking-wider text-[#ABA3C4]">
-                  Today
-                </span>
-
-                <div className="h-px flex-1 bg-white/5" />
-
-              </div>
-
-              {/* Messages */}
-
-              {currentMessages.length ===
-              0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-
-                  <div className="relative mb-5">
-
-                    <div className="absolute -inset-3 rounded-full bg-gradient-to-r from-[#FF5C7C]/10 via-[#FFC145]/10 to-[#9D8DF1]/10 blur-xl" />
-
-                    <Image
-                      src={
-                        selectedConversation.profilePic
+                <div className="h-[72px] sm:h-[80px] shrink-0 px-3 sm:px-5 border-b border-white/5 flex items-center justify-between relative">
+                  <div className="flex items-center gap-2.5 sm:gap-3">
+                    <button
+                      onClick={
+                        handleMobileBack
                       }
-                      alt={
-                        selectedConversation.name
-                      }
-                      width={72}
-                      height={72}
-                      className="relative w-[72px] h-[72px] rounded-full object-cover"
-                    />
+                      className="lg:hidden w-9 h-9 rounded-full bg-[#262238] flex items-center justify-center text-[#ABA3C4] hover:text-[#F5F1EA] transition"
+                    >
+                      <FaChevronLeft className="text-xs" />
+                    </button>
 
-                  </div>
-
-                  <h3 className="[font-family:var(--font-display)] text-xl font-semibold">
-                    Start a conversation
-                  </h3>
-
-                  <p className="text-sm text-[#ABA3C4] mt-1 max-w-xs">
-                    Send a message to{" "}
-                    {selectedConversation.name}{" "}
-                    and start your circle.
-                  </p>
-
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-
-                  {currentMessages.map(
-                    (message, index) => {
-                      const isMine =
-                        message.sender ===
-                        "Me";
-
-                      const previousMessage =
-                        currentMessages[
-                          index - 1
-                        ];
-
-                      const sameSender =
-                        previousMessage &&
-                        previousMessage.sender ===
-                          message.sender;
-
-                      return (
-                        <div
-                          key={message.id || index}
-                          className={`flex items-end gap-2 ${
-                            isMine
-                              ? "justify-end"
-                              : "justify-start"
-                          }`}
+                    {selectedDisplay && (
+                      <>
+                        <Link
+                          href={`/profile/${selectedDisplay.otherUserId}`}
+                          className="relative shrink-0"
                         >
+                          <Image
+                            src={getImageUrl(
+                              selectedDisplay.profilePic
+                            )}
+                            alt={
+                              selectedDisplay.name
+                            }
+                            width={46}
+                            height={46}
+                            unoptimized
+                            className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover hover:opacity-80 transition"
+                          />
+                        </Link>
 
-                          {/* Other user avatar */}
+                        <Link
+                          href={`/profile/${selectedDisplay.otherUserId}`}
+                          className="min-w-0"
+                        >
+                          <h2 className="[font-family:var(--font-display)] font-semibold text-base sm:text-lg truncate hover:text-[#FF5C7C] transition">
+                            {
+                              selectedDisplay.name
+                            }
+                          </h2>
 
-                          {!isMine && (
-                            <div
-                              className={`shrink-0 ${
-                                sameSender
-                                  ? "opacity-0"
-                                  : ""
-                              }`}
-                            >
-                              <Image
-                                src={
-                                  selectedConversation.profilePic
-                                }
-                                alt={
-                                  selectedConversation.name
-                                }
-                                width={30}
-                                height={30}
-                                className="w-7 h-7 rounded-full object-cover"
-                              />
-                            </div>
+                          <p className="[font-family:var(--font-mono)] text-[9px] sm:text-[10px] text-[#ABA3C4] mt-0.5">
+                            Circl member
+                          </p>
+                        </Link>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="hidden sm:flex w-9 h-9 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
+                      title="Voice call"
+                    >
+                      <FaPhone className="text-xs" />
+                    </button>
+
+                    <button
+                      className="hidden sm:flex w-9 h-9 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
+                      title="Video call"
+                    >
+                      <FaVideo className="text-xs" />
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setShowConversationMenu(
+                          !showConversationMenu
+                        )
+                      }
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-[#ABA3C4] hover:bg-[#262238] hover:text-[#F5F1EA] transition"
+                      title="More"
+                    >
+                      <FaEllipsisV className="text-xs" />
+                    </button>
+                  </div>
+
+                  {showConversationMenu && (
+                    <div className="absolute top-[68px] right-4 sm:right-5 z-30 w-48 bg-[#262238] border border-white/10 rounded-2xl shadow-2xl p-1.5">
+                      <button
+                        onClick={
+                          handleClearChat
+                        }
+                        disabled={
+                          selectedConversation.isNewConversation
+                        }
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#FF5C7C] transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Clear conversation
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          setShowConversationMenu(
+                            false
+                          )
+                        }
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#F5F1EA] transition"
+                      >
+                        Close menu
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* =================================================
+                    CHAT BODY
+                ================================================= */}
+
+                <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 py-5 sm:py-6">
+                  {loadingTargetUser ||
+                  loadingMessages ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="w-8 h-8 border-2 border-[#FF5C7C]/30 border-t-[#FF5C7C] rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <>
+                      {currentMessages.length >
+                        0 && (
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="h-px flex-1 bg-white/5" />
+
+                          <span className="[font-family:var(--font-mono)] text-[9px] uppercase tracking-wider text-[#ABA3C4]">
+                            {formatMessageDate(
+                              currentMessages[0]
+                                ?.createdAt
+                            )}
+                          </span>
+
+                          <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                      )}
+
+                      {currentMessages.length ===
+                      0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center">
+                          {selectedDisplay && (
+                            <>
+                              <div className="relative mb-5">
+                                <div className="absolute -inset-3 rounded-full bg-gradient-to-r from-[#FF5C7C]/10 via-[#FFC145]/10 to-[#9D8DF1]/10 blur-xl" />
+
+                                <Image
+                                  src={getImageUrl(
+                                    selectedDisplay.profilePic
+                                  )}
+                                  alt={
+                                    selectedDisplay.name
+                                  }
+                                  width={72}
+                                  height={72}
+                                  unoptimized
+                                  className="relative w-[72px] h-[72px] rounded-full object-cover"
+                                />
+                              </div>
+
+                              <h3 className="[font-family:var(--font-display)] text-xl font-semibold">
+                                Start a conversation
+                              </h3>
+
+                              <p className="text-sm text-[#ABA3C4] mt-1 max-w-xs">
+                                Send a message to{" "}
+                                {
+                                  selectedDisplay.name
+                                }{" "}
+                                and start your circle.
+                              </p>
+                            </>
                           )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-3">
+                          {currentMessages.map(
+                            (
+                              message,
+                              index
+                            ) => {
+                              const senderId =
+                                typeof message.sender ===
+                                "object"
+                                  ? message.sender
+                                      ?._id ||
+                                    message.sender
+                                      ?.id
+                                  : message.sender;
 
-                          {/* Message */}
+                              const isMine =
+                                currentUser &&
+                                senderId
+                                  ?.toString() ===
+                                  currentUser.id?.toString();
 
-                          <div
-                            className={`max-w-[78%] sm:max-w-[65%] flex flex-col ${
-                              isMine
-                                ? "items-end"
-                                : "items-start"
-                            }`}
-                          >
+                              const previousMessage =
+                                currentMessages[
+                                  index - 1
+                                ];
 
-                            <div
-                              className={`
-                                px-4 py-2.5
-                                rounded-2xl
-                                text-sm
-                                leading-relaxed
-                                break-words
-                                ${
-                                  isMine
-                                    ? "bg-[#FF5C7C] text-[#15121F] rounded-br-md font-medium"
-                                    : "bg-[#262238] text-[#F5F1EA] border border-white/5 rounded-bl-md"
-                                }
-                              `}
-                            >
-                              {message.text}
-                            </div>
+                              const previousSenderId =
+                                typeof previousMessage?.sender ===
+                                "object"
+                                  ? previousMessage
+                                      ?.sender
+                                      ?._id ||
+                                    previousMessage
+                                      ?.sender
+                                      ?.id
+                                  : previousMessage?.sender;
 
-                            <div
-                              className={`flex items-center gap-1.5 mt-1 px-1 ${
-                                isMine
-                                  ? "flex-row-reverse"
-                                  : ""
-                              }`}
-                            >
+                              const sameSender =
+                                previousMessage &&
+                                previousSenderId
+                                  ?.toString() ===
+                                  senderId?.toString();
 
-                              <span className="[font-family:var(--font-mono)] text-[8px] text-[#77718C]">
-                                {formatTime(
-                                  message.createdAt
-                                )}
-                              </span>
+                              const senderProfilePic =
+                                typeof message.sender ===
+                                "object"
+                                  ? message.sender
+                                      ?.profilePic
+                                  : null;
 
-                              {isMine && (
-                                <>
-                                  {message.status ===
-                                  "read" ? (
-                                    <FaCheckDouble className="text-[8px] text-[#9D8DF1]" />
-                                  ) : (
-                                    <FaCheck className="text-[8px] text-[#77718C]" />
+                              const senderUsername =
+                                typeof message.sender ===
+                                "object"
+                                  ? message.sender
+                                      ?.username
+                                  : "User";
+
+                              return (
+                                <div
+                                  key={
+                                    message._id ||
+                                    index
+                                  }
+                                  className={`flex items-end gap-2 ${
+                                    isMine
+                                      ? "justify-end"
+                                      : "justify-start"
+                                  }`}
+                                >
+                                  {!isMine && (
+                                    <div
+                                      className={`shrink-0 ${
+                                        sameSender
+                                          ? "opacity-0"
+                                          : ""
+                                      }`}
+                                    >
+                                      <Image
+                                        src={getImageUrl(
+                                          senderProfilePic
+                                        )}
+                                        alt={
+                                          senderUsername ||
+                                          "User"
+                                        }
+                                        width={
+                                          30
+                                        }
+                                        height={
+                                          30
+                                        }
+                                        unoptimized
+                                        className="w-7 h-7 rounded-full object-cover"
+                                      />
+                                    </div>
                                   )}
 
-                                  <span className="text-[8px] text-[#77718C]">
-                                    {message.status ===
-                                    "read"
-                                      ? "Read"
-                                      : "Sent"}
-                                  </span>
-                                </>
-                              )}
+                                  <div
+                                    className={`max-w-[78%] sm:max-w-[65%] flex flex-col ${
+                                      isMine
+                                        ? "items-end"
+                                        : "items-start"
+                                    }`}
+                                  >
+                                    <div
+                                      className={`
+                                        px-4 py-2.5
+                                        rounded-2xl
+                                        text-sm
+                                        leading-relaxed
+                                        break-words
+                                        ${
+                                          isMine
+                                            ? "bg-[#FF5C7C] text-[#15121F] rounded-br-md font-medium"
+                                            : "bg-[#262238] text-[#F5F1EA] border border-white/5 rounded-bl-md"
+                                        }
+                                      `}
+                                    >
+                                      {
+                                        message.text
+                                      }
+                                    </div>
 
-                            </div>
+                                    <div
+                                      className={`flex items-center gap-1.5 mt-1 px-1 ${
+                                        isMine
+                                          ? "flex-row-reverse"
+                                          : ""
+                                      }`}
+                                    >
+                                      <span className="[font-family:var(--font-mono)] text-[8px] text-[#77718C]">
+                                        {formatTime(
+                                          message.createdAt
+                                        )}
+                                      </span>
 
-                          </div>
+                                      {isMine && (
+                                        <>
+                                          {message.isRead ? (
+                                            <FaCheckDouble className="text-[8px] text-[#9D8DF1]" />
+                                          ) : (
+                                            <FaCheck className="text-[8px] text-[#77718C]" />
+                                          )}
 
+                                          <span className="text-[8px] text-[#77718C]">
+                                            {message.isRead
+                                              ? "Read"
+                                              : "Sent"}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                          )}
+
+                          <div
+                            ref={
+                              messagesEndRef
+                            }
+                          />
                         </div>
-                      );
-                    }
+                      )}
+                    </>
                   )}
-
-                  <div
-                    ref={messagesEndRef}
-                  />
-
-                </div>
-              )}
-
-            </div>
-
-            {/* =================================================
-                MESSAGE COMPOSER
-            ================================================= */}
-
-            <div className="shrink-0 border-t border-white/5 p-3 sm:p-4">
-
-              <div className="bg-[#262238] border border-white/5 rounded-2xl p-2 focus-within:border-[#FF5C7C]/30 transition">
-
-                <div className="flex items-end gap-2">
-
-                  {/* Attach */}
-
-                  <button
-                    className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#F5F1EA] transition"
-                    title="Attach file"
-                  >
-                    <FaPaperclip className="text-sm" />
-                  </button>
-
-                  {/* Input */}
-
-                  <textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    rows={1}
-                    placeholder={`Message ${selectedConversation.name}...`}
-                    className="flex-1 max-h-[120px] resize-none bg-transparent py-2 px-1 text-sm text-[#F5F1EA] placeholder:text-[#77718C] focus:outline-none leading-5"
-                  />
-
-                  {/* Emoji */}
-
-                  <button
-                    className="hidden sm:flex w-9 h-9 shrink-0 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#FFC145] transition"
-                    title="Add emoji"
-                  >
-                    <FaSmile className="text-base" />
-                  </button>
-
-                  {/* Send */}
-
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim()}
-                    className={`
-                      w-9 h-9 sm:w-10 sm:h-10
-                      shrink-0
-                      flex items-center justify-center
-                      rounded-xl
-                      transition-all
-                      ${
-                        input.trim()
-                          ? "bg-[#FF5C7C] hover:bg-[#FF4A6E] text-[#15121F] hover:scale-105"
-                          : "bg-[#1E1A2E] text-[#77718C] cursor-not-allowed"
-                      }
-                    `}
-                    title="Send message"
-                  >
-                    <FaPaperPlane className="text-xs" />
-                  </button>
-
                 </div>
 
-              </div>
+                {/* =================================================
+                    COMPOSER
+                ================================================= */}
 
-              <p className="hidden sm:block text-center [font-family:var(--font-mono)] text-[8px] text-[#77718C] mt-2">
-                Press Enter to send · Shift + Enter
-                for a new line
-              </p>
+                <div className="shrink-0 border-t border-white/5 p-3 sm:p-4">
+                  <div className="bg-[#262238] border border-white/5 rounded-2xl p-2 focus-within:border-[#FF5C7C]/30 transition">
+                    <div className="flex items-end gap-2">
+                      <button
+                        className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#F5F1EA] transition"
+                        title="Attach file"
+                      >
+                        <FaPaperclip className="text-sm" />
+                      </button>
 
-            </div>
+                      <textarea
+                        ref={
+                          textareaRef
+                        }
+                        value={input}
+                        onChange={
+                          handleInputChange
+                        }
+                        onKeyDown={
+                          handleKeyDown
+                        }
+                        rows={1}
+                        placeholder={`Message ${
+                          selectedDisplay?.name ||
+                          "user"
+                        }...`}
+                        disabled={
+                          sending
+                        }
+                        className="flex-1 max-h-[120px] resize-none bg-transparent py-2 px-1 text-sm text-[#F5F1EA] placeholder:text-[#77718C] focus:outline-none leading-5 disabled:opacity-50"
+                      />
 
+                      <button
+                        className="hidden sm:flex w-9 h-9 shrink-0 rounded-full items-center justify-center text-[#ABA3C4] hover:bg-[#1E1A2E] hover:text-[#FFC145] transition"
+                        title="Add emoji"
+                      >
+                        <FaSmile className="text-base" />
+                      </button>
+
+                      <button
+                        onClick={
+                          handleSend
+                        }
+                        disabled={
+                          !input.trim() ||
+                          sending
+                        }
+                        className={`
+                          w-9 h-9 sm:w-10 sm:h-10
+                          shrink-0
+                          flex items-center justify-center
+                          rounded-xl
+                          transition-all
+                          ${
+                            input.trim() &&
+                            !sending
+                              ? "bg-[#FF5C7C] hover:bg-[#FF4A6E] text-[#15121F] hover:scale-105"
+                              : "bg-[#1E1A2E] text-[#77718C] cursor-not-allowed"
+                          }
+                        `}
+                        title="Send message"
+                      >
+                        {sending ? (
+                          <div className="w-4 h-4 border-2 border-[#15121F]/30 border-t-[#15121F] rounded-full animate-spin" />
+                        ) : (
+                          <FaPaperPlane className="text-xs" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p className="hidden sm:block text-center [font-family:var(--font-mono)] text-[8px] text-[#77718C] mt-2">
+                    Press Enter to send · Shift +
+                    Enter for a new line
+                  </p>
+                </div>
+              </>
+            )}
           </section>
-
         </div>
       </div>
     </main>

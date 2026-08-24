@@ -1,21 +1,19 @@
-
 const express = require("express");
 
 const protect = require("../middleware/authMiddleware");
 
 const {
   getNotifications,
-  markAsRead,
-  markAllAsRead,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } = require("../controllers/notificationController");
 
 const router = express.Router();
 
-/*
-=========================================================
-GET MY NOTIFICATIONS
-=========================================================
-*/
+// =====================================================
+// GET ALL NOTIFICATIONS
+// GET /api/notifications
+// =====================================================
 
 router.get(
   "/",
@@ -23,32 +21,26 @@ router.get(
   getNotifications
 );
 
-/*
-=========================================================
-MARK ALL AS READ
-
-IMPORTANT:
-This must come BEFORE /:id/read
-=========================================================
-*/
-
-router.put(
-  "/read-all",
-  protect,
-  markAllAsRead
-);
-
-/*
-=========================================================
-MARK ONE AS READ
-=========================================================
-*/
+// =====================================================
+// MARK ONE AS READ
+// PUT /api/notifications/:id/read
+// =====================================================
 
 router.put(
   "/:id/read",
   protect,
-  markAsRead
+  markNotificationAsRead
+);
+
+// =====================================================
+// MARK ALL AS READ
+// PUT /api/notifications/read-all
+// =====================================================
+
+router.put(
+  "/read-all",
+  protect,
+  markAllNotificationsAsRead
 );
 
 module.exports = router;
-

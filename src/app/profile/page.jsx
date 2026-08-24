@@ -1,9 +1,8 @@
-
 "use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Fraunces,
   Inter,
@@ -12,12 +11,17 @@ import {
 
 import {
   FaArrowLeft,
+  FaUser,
+  FaUsers,
   FaHeart,
   FaComment,
-  FaUserPlus,
-  FaCheck,
-  FaBell,
+  FaImage,
+  FaPen,
   FaSignOutAlt,
+  FaSpinner,
+  FaUserPlus,
+  FaUserCheck,
+  FaEnvelope,
 } from "react-icons/fa";
 
 /* =========================================================
@@ -50,64 +54,8 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5000/api";
 
-/*
-  Backend root.
-
-  Example:
-  API_URL = http://localhost:5000/api
-
-  BACKEND_URL becomes:
-  http://localhost:5000
-*/
-
-const BACKEND_URL = API_URL.replace(/\/api\/?$/, "");
-
 /* =========================================================
-   ICONS
-========================================================= */
-
-const ICONS = {
-  like: {
-    icon: FaHeart,
-    color: "#FF5C7C",
-  },
-
-  comment: {
-    icon: FaComment,
-    color: "#9D8DF1",
-  },
-
-  follow: {
-    icon: FaUserPlus,
-    color: "#FFC145",
-  },
-};
-
-/* =========================================================
-   TABS
-========================================================= */
-
-const TABS = [
-  {
-    id: "all",
-    label: "All",
-  },
-  {
-    id: "like",
-    label: "Likes",
-  },
-  {
-    id: "comment",
-    label: "Comments",
-  },
-  {
-    id: "follow",
-    label: "Follows",
-  },
-];
-
-/* =========================================================
-   GET TOKEN
+   TOKEN
 ========================================================= */
 
 function getToken() {
@@ -123,53 +71,36 @@ function getToken() {
 }
 
 /* =========================================================
-   IMAGE URL HELPER
+   IMAGE URL
 ========================================================= */
 
-function getAvatarUrl(profilePic) {
-  if (!profilePic) {
+function getImageUrl(image) {
+  if (!image) {
     return "/images/default-avatar.png";
   }
 
-  /*
-   Already a complete URL
-   */
-
   if (
-    profilePic.startsWith("http://") ||
-    profilePic.startsWith("https://") ||
-    profilePic.startsWith("data:")
+    image.startsWith("http://") ||
+    image.startsWith("https://") ||
+    image.startsWith("data:")
   ) {
-    return profilePic;
+    return image;
   }
 
-  /*
-   Relative backend path.
+  const backendUrl = API_URL.replace(/\/api\/?$/, "");
 
-   Example:
-   /images/default-avatar.png
-
-   becomes:
-   http://localhost:5000/images/default-avatar.png
-   */
-
-  if (profilePic.startsWith("/")) {
-    return `${BACKEND_URL}${profilePic}`;
+  if (image.startsWith("/")) {
+    return `${backendUrl}${image}`;
   }
 
-  /*
-   In case database contains something like:
-   images/avatar.jpg
-   */
-
-  return `${BACKEND_URL}/${profilePic}`;
+  return `${backendUrl}/${image}`;
 }
 
 /* =========================================================
-   TIME FORMATTER
+   FORMAT DATE
 ========================================================= */
 
-function formatTimeAgo(dateValue) {
+function formatDate(dateValue) {
   if (!dateValue) {
     return "";
   }
@@ -180,217 +111,160 @@ function formatTimeAgo(dateValue) {
     return "";
   }
 
-  const now = new Date();
-
-  const difference = Math.max(
-    0,
-    now.getTime() - date.getTime()
-  );
-
-  const seconds = Math.floor(
-    difference / 1000
-  );
-
-  const minutes = Math.floor(
-    seconds / 60
-  );
-
-  const hours = Math.floor(
-    minutes / 60
-  );
-
-  const days = Math.floor(
-    hours / 24
-  );
-
-  const weeks = Math.floor(
-    days / 7
-  );
-
-  if (seconds < 60) {
-    return "just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  if (days < 7) {
-    return `${days}d ago`;
-  }
-
-  if (weeks < 4) {
-    return `${weeks}w ago`;
-  }
-
-  return date.toLocaleDateString();
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /* =========================================================
-   NORMALIZE NOTIFICATION
+   GET ID
 ========================================================= */
 
-function normalizeNotification(
-  notification
-) {
-  const actor =
-    notification.actor ||
-    notification.sender ||
-    notification.from ||
-    {};
+function getId(value) {
+  if (!value) {
+    return null;
+  }
 
-  const actorId =
-    actor?._id ||
-    actor?.id ||
-    notification.actorId ||
-    notification.senderId ||
-    null;
+  if (typeof value === "string") {
+    return value;
+  }
 
-  const actorName =
-    actor?.username ||
-    actor?.name ||
-    notification.actorName ||
-    notification.username ||
-    "Someone";
+  return value._id || value.id || null;
+}
+
+/* =========================================================
+   PROFILE PAGE
+========================================================= */
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const params = useParams();
 
   /*
-   Get actor profile picture.
-   */
+    /profile
+    = current user's profile
 
-  const rawAvatar =
-    actor?.profilePic ||
-    actor?.avatar ||
-    notification.avatar ||
-    null;
+    /profile/[id]
+    = another user's profile
+  */
 
-  const avatar = getAvatarUrl(
-    rawAvatar
-  );
-
-  const type =
-    notification.type === "like" ||
-    notification.type === "comment" ||
-    notification.type === "follow"
-      ? notification.type
-      : "like";
-
-  let text = "interacted with you";
-
-  if (type === "like") {
-    text = "liked your post";
-  }
-
-  if (type === "comment") {
-    text = "commented on your post";
-  }
-
-  if (type === "follow") {
-    text = "started following you";
-  }
-
-  return {
-    id:
-      notification._id ||
-      notification.id ||
-      `${type}-${Date.now()}-${Math.random()}`,
-
-    type,
-
-    actor: actorName,
-
-    actorId,
-
-    avatar,
-
-    flag:
-      actor?.location?.flag ||
-      notification.flag ||
-      "",
-
-    text,
-
-    detail:
-      notification.commentText ||
-      notification.comment ||
-      notification.content ||
-      notification.postTitle ||
-      notification.detail ||
-      null,
-
-    postId:
-      notification.post?._id ||
-      notification.postId ||
-      null,
-
-    createdAt:
-      notification.createdAt ||
-      notification.date ||
-      notification.timestamp ||
-      null,
-
-    read: Boolean(
-      notification.read ||
-        notification.isRead
-    ),
-
-    group:
-      notification.group ||
-      "earlier",
-  };
-}
-
-/* =========================================================
-   PAGE
-========================================================= */
-
-export default function NotificationPage() {
-  const router = useRouter();
-
-  const [
-    notifications,
-    setNotifications,
-  ] = useState([]);
-
-  const [
-    activeTab,
-    setActiveTab,
-  ] = useState("all");
-
-  const [
-    followedBack,
-    setFollowedBack,
-  ] = useState({});
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    error,
-    setError,
-  ] = useState("");
-
-  const [
-    markingAll,
-    setMarkingAll,
-  ] = useState(false);
-
-  const [
-    loggingOut,
-    setLoggingOut,
-  ] = useState(false);
+  const profileId = params?.id
+    ? String(params.id)
+    : null;
 
   /* =======================================================
-     LOAD NOTIFICATIONS
+     STATE
+  ======================================================= */
+
+  const [user, setUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const [posts, setPosts] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [postsLoading, setPostsLoading] = useState(true);
+
+  const [error, setError] = useState("");
+  const [postsError, setPostsError] = useState("");
+
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
+
+  /* =======================================================
+     IS OWN PROFILE
+  ======================================================= */
+
+  const isOwnProfile = useMemo(() => {
+    if (!user || !currentUser) {
+      return !profileId;
+    }
+
+    const userId = getId(user);
+    const currentId = getId(currentUser);
+
+    if (!userId || !currentId) {
+      return !profileId;
+    }
+
+    return (
+      userId.toString() === currentId.toString()
+    );
+  }, [user, currentUser, profileId]);
+
+  /* =======================================================
+     FOLLOWERS
+  ======================================================= */
+
+  const followers = useMemo(() => {
+    return Array.isArray(user?.followers)
+      ? user.followers
+      : [];
+  }, [user]);
+
+  /* =======================================================
+     FOLLOWING
+  ======================================================= */
+
+  const following = useMemo(() => {
+    return Array.isArray(user?.following)
+      ? user.following
+      : [];
+  }, [user]);
+
+  /* =======================================================
+     COUNTS
+  ======================================================= */
+
+  const followerCount = followers.length;
+  const followingCount = following.length;
+  const postCount = posts.length;
+
+  /* =======================================================
+     CHECK WHETHER CURRENT USER FOLLOWS PROFILE USER
+     
+     IMPORTANT:
+     We check currentUser.following.
+  ======================================================= */
+
+  const isFollowing = useMemo(() => {
+    if (!currentUser || !user) {
+      return false;
+    }
+
+    const targetId = getId(user);
+
+    if (!targetId) {
+      return false;
+    }
+
+    const currentFollowing = Array.isArray(
+      currentUser.following
+    )
+      ? currentUser.following
+      : [];
+
+    return currentFollowing.some((item) => {
+      const followingId = getId(item);
+
+      return (
+        followingId &&
+        followingId.toString() ===
+          targetId.toString()
+      );
+    });
+  }, [currentUser, user]);
+
+  /* =======================================================
+     LOAD PROFILE
   ======================================================= */
 
   useEffect(() => {
-    const loadNotifications = async () => {
+    let cancelled = false;
+
+    const loadProfile = async () => {
       try {
         setLoading(true);
         setError("");
@@ -402,84 +276,558 @@ export default function NotificationPage() {
           return;
         }
 
-        const response = await fetch(
-          `${API_URL}/notifications`,
+        /* -------------------------------------------------
+           GET CURRENT USER
+        ------------------------------------------------- */
+
+        const meResponse = await fetch(
+          `${API_URL}/users/me`,
           {
             method: "GET",
-
             headers: {
               Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
+              "Content-Type": "application/json",
             },
-
             cache: "no-store",
           }
         );
 
-        const data =
-          await response.json();
+        const meData = await meResponse.json();
 
-        if (!response.ok) {
+        if (!meResponse.ok) {
           if (
-            response.status === 401 ||
-            response.status === 403
+            meResponse.status === 401 ||
+            meResponse.status === 403
           ) {
-            localStorage.removeItem(
-              "token"
-            );
-
-            localStorage.removeItem(
-              "authToken"
-            );
-
-            localStorage.removeItem(
-              "accessToken"
-            );
+            localStorage.removeItem("token");
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("accessToken");
 
             router.push("/login");
-
             return;
           }
 
           throw new Error(
-            data.message ||
-              "Failed to load notifications"
+            meData.message ||
+              "Failed to load current user"
           );
         }
 
-        const serverNotifications =
-          Array.isArray(
-            data.notifications
-          )
-            ? data.notifications
-            : [];
+        if (cancelled) {
+          return;
+        }
 
-        const normalized =
-          serverNotifications.map(
-            normalizeNotification
+        setCurrentUser(meData.user);
+
+        /* -------------------------------------------------
+           GET PROFILE
+        ------------------------------------------------- */
+
+        let profileData;
+
+        if (profileId) {
+          const profileResponse = await fetch(
+            `${API_URL}/users/${profileId}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type":
+                  "application/json",
+              },
+              cache: "no-store",
+            }
           );
 
-        setNotifications(
-          normalized
-        );
-      } catch (err) {
+          profileData =
+            await profileResponse.json();
+
+          if (!profileResponse.ok) {
+            if (
+              profileResponse.status === 401 ||
+              profileResponse.status === 403
+            ) {
+              localStorage.removeItem("token");
+              localStorage.removeItem("authToken");
+              localStorage.removeItem("accessToken");
+
+              router.push("/login");
+              return;
+            }
+
+            throw new Error(
+              profileData.message ||
+                "Failed to load profile"
+            );
+          }
+        } else {
+          profileData = meData;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setUser(profileData.user);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
         console.error(
-          "Load notifications error:",
-          err
+          "Profile loading error:",
+          error
         );
 
         setError(
-          err.message ||
-            "Failed to load notifications."
+          error.message ||
+            "Failed to load profile"
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    loadNotifications();
-  }, [router]);
+    loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, profileId]);
+
+  /* =======================================================
+     LOAD POSTS
+  ======================================================= */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPosts = async () => {
+      try {
+        setPostsLoading(true);
+        setPostsError("");
+
+        const token = getToken();
+
+        if (!token) {
+          router.push("/login");
+          return;
+        }
+
+        const userId = getId(user);
+
+        if (!userId) {
+          setPosts([]);
+          setPostsLoading(false);
+          return;
+        }
+
+        const response = await fetch(
+          `${API_URL}/posts`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              "Failed to load posts"
+          );
+        }
+
+        const allPosts = Array.isArray(data)
+          ? data
+          : Array.isArray(data.posts)
+          ? data.posts
+          : [];
+
+        const userPosts = allPosts.filter(
+          (post) => {
+            const authorId =
+              getId(post?.author);
+
+            return (
+              authorId?.toString() ===
+              userId.toString()
+            );
+          }
+        );
+
+        if (!cancelled) {
+          setPosts(userPosts);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error(
+          "Posts loading error:",
+          error
+        );
+
+        setPostsError(
+          error.message ||
+            "Failed to load posts"
+        );
+      } finally {
+        if (!cancelled) {
+          setPostsLoading(false);
+        }
+      }
+    };
+
+    if (user) {
+      loadPosts();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, router]);
+
+  /* =======================================================
+     FOLLOW / UNFOLLOW
+
+     IMPORTANT:
+     Your backend route is:
+
+     POST /api/users/:id/follow
+
+     and toggleFollow handles both actions.
+
+     Therefore we ALWAYS use POST.
+  ======================================================= */
+
+  const handleFollowToggle = async () => {
+    try {
+      const targetId = getId(user);
+      const currentId = getId(currentUser);
+
+      if (!targetId || !currentId) {
+        return;
+      }
+
+      if (isOwnProfile) {
+        return;
+      }
+
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      setFollowLoading(true);
+
+      const response = await fetch(
+        `${API_URL}/users/${targetId}/follow`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Failed to update follow status"
+        );
+      }
+
+      /*
+        Determine the new state.
+
+        Some backends return:
+        following: true/false
+
+        Others return:
+        isFollowing: true/false
+
+        We support both.
+      */
+
+      let newFollowingState;
+
+      if (
+        typeof data?.following === "boolean"
+      ) {
+        newFollowingState = data.following;
+      } else if (
+        typeof data?.isFollowing === "boolean"
+      ) {
+        newFollowingState =
+          data.isFollowing;
+      } else {
+        newFollowingState = !isFollowing;
+      }
+
+      /* -------------------------------------------------
+         UPDATE TARGET USER
+      ------------------------------------------------- */
+
+      setUser((previousUser) => {
+        if (!previousUser) {
+          return previousUser;
+        }
+
+        const oldFollowers =
+          Array.isArray(
+            previousUser.followers
+          )
+            ? previousUser.followers
+            : [];
+
+        if (newFollowingState) {
+          const alreadyExists =
+            oldFollowers.some((item) => {
+              const followerId =
+                getId(item);
+
+              return (
+                followerId?.toString() ===
+                currentId.toString()
+              );
+            });
+
+          return {
+            ...previousUser,
+            followers: alreadyExists
+              ? oldFollowers
+              : [
+                  ...oldFollowers,
+                  currentId,
+                ],
+          };
+        }
+
+        return {
+          ...previousUser,
+          followers:
+            oldFollowers.filter((item) => {
+              const followerId =
+                getId(item);
+
+              return (
+                followerId?.toString() !==
+                currentId.toString()
+              );
+            }),
+        };
+      });
+
+      /* -------------------------------------------------
+         UPDATE CURRENT USER
+      ------------------------------------------------- */
+
+      setCurrentUser((previousUser) => {
+        if (!previousUser) {
+          return previousUser;
+        }
+
+        const oldFollowing =
+          Array.isArray(
+            previousUser.following
+          )
+            ? previousUser.following
+            : [];
+
+        if (newFollowingState) {
+          const alreadyExists =
+            oldFollowing.some((item) => {
+              const followingId =
+                getId(item);
+
+              return (
+                followingId?.toString() ===
+                targetId.toString()
+              );
+            });
+
+          return {
+            ...previousUser,
+            following: alreadyExists
+              ? oldFollowing
+              : [
+                  ...oldFollowing,
+                  targetId,
+                ],
+          };
+        }
+
+        return {
+          ...previousUser,
+          following:
+            oldFollowing.filter((item) => {
+              const followingId =
+                getId(item);
+
+              return (
+                followingId?.toString() !==
+                targetId.toString()
+              );
+            }),
+        };
+      });
+    } catch (error) {
+      console.error(
+        "Follow/unfollow error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Something went wrong"
+      );
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  /* =======================================================
+     MESSAGE USER
+
+     IMPORTANT:
+     Inbox is only shown when the user is following
+     this profile.
+
+     This matches your requirement:
+     Follow first -> Inbox appears.
+  ======================================================= */
+
+  const handleMessageUser = async () => {
+    try {
+      const targetId = getId(user);
+      const currentId = getId(currentUser);
+
+      if (!targetId || !currentId) {
+        return;
+      }
+
+      if (
+        targetId.toString() ===
+        currentId.toString()
+      ) {
+        return;
+      }
+
+      /*
+        Do not allow messaging from this profile
+        until the current user follows them.
+      */
+
+      if (!isFollowing) {
+        alert(
+          "Follow this user first to send a message."
+        );
+        return;
+      }
+
+      const token = getToken();
+
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      setMessageLoading(true);
+
+      /*
+        Try to create/find conversation.
+      */
+
+      const response = await fetch(
+        `${API_URL}/conversations`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            participantId: targetId,
+            userId: targetId,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      const conversationId =
+        data?.conversation?._id ||
+        data?.conversation?.id ||
+        data?.conversationId ||
+        data?.id;
+
+      /*
+        If backend returns conversation ID,
+        open that conversation.
+      */
+
+      if (
+        response.ok &&
+        conversationId
+      ) {
+        router.push(
+          `/messages/${conversationId}`
+        );
+
+        return;
+      }
+
+      /*
+        Fallback to messages page.
+      */
+
+      router.push(
+        `/messages?user=${targetId}`
+      );
+    } catch (error) {
+      console.error(
+        "Message user error:",
+        error
+      );
+
+      /*
+        Still open messages page if
+        conversation creation fails.
+      */
+
+      const targetId = getId(user);
+
+      if (targetId) {
+        router.push(
+          `/messages?user=${targetId}`
+        );
+      }
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  /* =======================================================
+     EDIT PROFILE
+  ======================================================= */
+
+  const handleEditProfile = () => {
+    router.push("/profile/edit");
+  };
 
   /* =======================================================
      LOGOUT
@@ -489,38 +837,11 @@ export default function NotificationPage() {
     try {
       setLoggingOut(true);
 
-      /*
-       Remove every possible token
-       */
-
-      localStorage.removeItem(
-        "token"
-      );
-
-      localStorage.removeItem(
-        "authToken"
-      );
-
-      localStorage.removeItem(
-        "accessToken"
-      );
-
-      /*
-       Optional cleanup if your app
-       stores user information locally.
-       */
-
-      localStorage.removeItem(
-        "user"
-      );
-
-      localStorage.removeItem(
-        "currentUser"
-      );
-
-      /*
-       Send user to login.
-       */
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user");
+      localStorage.removeItem("currentUser");
 
       router.replace("/login");
     } catch (error) {
@@ -534,206 +855,34 @@ export default function NotificationPage() {
   };
 
   /* =======================================================
-     MARK ONE AS READ
+     FOLLOWERS
   ======================================================= */
 
-  const markAsRead = async (id) => {
-    try {
-      const token = getToken();
+  const openFollowers = () => {
+    const userId = getId(user);
 
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-
-      setNotifications(
-        (previous) =>
-          previous.map(
-            (notification) =>
-              notification.id === id
-                ? {
-                    ...notification,
-                    read: true,
-                  }
-                : notification
-          )
-      );
-
-      const response =
-        await fetch(
-          `${API_URL}/notifications/${id}/read`,
-          {
-            method: "PUT",
-
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-          }
-        );
-
-      if (!response.ok) {
-        console.error(
-          "Failed to mark notification as read"
-        );
-      }
-    } catch (err) {
-      console.error(
-        "Mark notification as read error:",
-        err
-      );
-    }
-  };
-
-  /* =======================================================
-     MARK ALL READ
-  ======================================================= */
-
-  const markAllRead = async () => {
-    try {
-      const token = getToken();
-
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-
-      setMarkingAll(true);
-
-      setNotifications(
-        (previous) =>
-          previous.map(
-            (notification) => ({
-              ...notification,
-              read: true,
-            })
-          )
-      );
-
-      const response =
-        await fetch(
-          `${API_URL}/notifications/read-all`,
-          {
-            method: "PUT",
-
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type":
-                "application/json",
-            },
-          }
-        );
-
-      if (!response.ok) {
-        console.error(
-          "Failed to mark all notifications as read"
-        );
-      }
-    } catch (err) {
-      console.error(
-        "Mark all notifications error:",
-        err
-      );
-    } finally {
-      setMarkingAll(false);
-    }
-  };
-
-  /* =======================================================
-     FOLLOW BACK
-  ======================================================= */
-
-  const toggleFollowBack = async (
-    notification
-  ) => {
-    try {
-      const token = getToken();
-
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-
-      if (!notification.actorId) {
-        return;
-      }
-
-      const currentlyFollowing =
-        Boolean(
-          followedBack[
-            notification.id
-          ]
-        );
-
-      setFollowedBack(
-        (previous) => ({
-          ...previous,
-
-          [notification.id]:
-            !currentlyFollowing,
-        })
-      );
-
-      const endpoint =
-        currentlyFollowing
-          ? `${API_URL}/users/${notification.actorId}/unfollow`
-          : `${API_URL}/users/${notification.actorId}/follow`;
-
-      const response =
-        await fetch(endpoint, {
-          method: "POST",
-
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type":
-              "application/json",
-          },
-        });
-
-      if (!response.ok) {
-        setFollowedBack(
-          (previous) => ({
-            ...previous,
-
-            [notification.id]:
-              currentlyFollowing,
-          })
-        );
-
-        const data =
-          await response.json();
-
-        console.error(
-          data.message ||
-            "Follow request failed"
-        );
-      }
-    } catch (err) {
-      console.error(
-        "Follow back error:",
-        err
-      );
-    }
-  };
-
-  /* =======================================================
-     OPEN ACTOR PROFILE
-  ======================================================= */
-
-  const openProfile = (
-    notification
-  ) => {
-    if (!notification.actorId) {
+    if (!userId) {
       return;
     }
 
-    markAsRead(
-      notification.id
+    router.push(
+      `/profile/${userId}/followers`
     );
+  };
+
+  /* =======================================================
+     FOLLOWING
+  ======================================================= */
+
+  const openFollowing = () => {
+    const userId = getId(user);
+
+    if (!userId) {
+      return;
+    }
 
     router.push(
-      `/profile/${notification.actorId}`
+      `/profile/${userId}/following`
     );
   };
 
@@ -741,263 +890,17 @@ export default function NotificationPage() {
      OPEN POST
   ======================================================= */
 
-  const openPost = (
-    notification
-  ) => {
-    markAsRead(
-      notification.id
-    );
+  const openPost = (post) => {
+    const postId =
+      post?._id ||
+      post?.id;
 
-    if (notification.postId) {
-      router.push(
-        `/feed?post=${notification.postId}`
-      );
-
+    if (!postId) {
       return;
     }
 
-    if (notification.actorId) {
-      router.push(
-        `/profile/${notification.actorId}`
-      );
-    }
-  };
-
-  /* =======================================================
-     UNREAD COUNT
-  ======================================================= */
-
-  const unreadCount = useMemo(
-    () => {
-      return notifications.filter(
-        (notification) =>
-          !notification.read
-      ).length;
-    },
-    [notifications]
-  );
-
-  /* =======================================================
-     FILTER
-  ======================================================= */
-
-  const filtered =
-    activeTab === "all"
-      ? notifications
-      : notifications.filter(
-          (notification) =>
-            notification.type ===
-            activeTab
-        );
-
-  /* =======================================================
-     GROUPS
-  ======================================================= */
-
-  const newItems =
-    filtered.filter(
-      (notification) => {
-        if (
-          notification.group ===
-          "new"
-        ) {
-          return true;
-        }
-
-        if (
-          !notification.createdAt
-        ) {
-          return !notification.read;
-        }
-
-        const date = new Date(
-          notification.createdAt
-        );
-
-        const difference =
-          Date.now() -
-          date.getTime();
-
-        return (
-          difference <=
-          24 *
-            60 *
-            60 *
-            1000
-        );
-      }
-    );
-
-  const earlierItems =
-    filtered.filter(
-      (notification) =>
-        !newItems.some(
-          (item) =>
-            item.id ===
-            notification.id
-        )
-    );
-
-  /* =======================================================
-     NOTIFICATION ROW
-  ======================================================= */
-
-  const NotificationRow = ({
-    notification,
-  }) => {
-    const meta =
-      ICONS[
-        notification.type
-      ] || ICONS.like;
-
-    const Icon = meta.icon;
-
-    const isFollow =
-      notification.type ===
-      "follow";
-
-    return (
-      <li
-        className={`flex items-center gap-3 p-3 sm:p-3.5 rounded-2xl transition ${
-          notification.read
-            ? "hover:bg-[#1E1A2E]"
-            : "bg-[#1E1A2E] hover:bg-[#262238]"
-        }`}
-      >
-        {/* AVATAR */}
-
-        <button
-          type="button"
-          onClick={() =>
-            openProfile(
-              notification
-            )
-          }
-          className="relative shrink-0 w-11 h-11"
-          title={`View ${notification.actor}'s profile`}
-        >
-          <span className="block w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] via-[#FFC145] to-[#9D8DF1]">
-            <Image
-              src={
-                notification.avatar ||
-                "/images/default-avatar.png"
-              }
-              alt={
-                notification.actor
-              }
-              width={44}
-              height={44}
-              unoptimized={
-                notification.avatar?.startsWith(
-                  "http"
-                ) ||
-                notification.avatar?.startsWith(
-                  "data:"
-                )
-              }
-              className="rounded-full object-cover w-full h-full border-2 border-[#15121F]"
-              onError={(event) => {
-                /*
-                 Prevent broken avatar icon.
-
-                 If the backend image fails,
-                 replace it with the local
-                 default avatar.
-                 */
-
-                event.currentTarget.src =
-                  "/images/default-avatar.png";
-              }}
-            />
-          </span>
-
-          <span
-            className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#15121F]"
-            style={{
-              backgroundColor:
-                meta.color,
-            }}
-          >
-            <Icon className="text-[9px] text-[#15121F]" />
-          </span>
-        </button>
-
-        {/* CONTENT */}
-
-        <button
-          type="button"
-          onClick={() => {
-            if (isFollow) {
-              markAsRead(
-                notification.id
-              );
-            } else {
-              openPost(
-                notification
-              );
-            }
-          }}
-          className="min-w-0 flex-1 text-left"
-        >
-          <p className="text-sm text-[#F5F1EA] leading-snug">
-            <span className="font-semibold">
-              {notification.actor}
-            </span>{" "}
-
-            <span className="text-[#ABA3C4]">
-              {notification.flag}
-            </span>{" "}
-
-            <span className="text-[#ABA3C4]">
-              {notification.text}
-            </span>
-          </p>
-
-          {notification.detail && (
-            <p className="text-xs text-[#ABA3C4] truncate mt-0.5">
-              {notification.detail}
-            </p>
-          )}
-
-          <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4]/70 mt-1">
-            {formatTimeAgo(
-              notification.createdAt
-            )}
-          </p>
-        </button>
-
-        {/* ACTION */}
-
-        {isFollow ? (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-
-              toggleFollowBack(
-                notification
-              );
-            }}
-            className={`shrink-0 [font-family:var(--font-body)] text-xs font-medium px-3.5 py-2 rounded-full transition ${
-              followedBack[
-                notification.id
-              ]
-                ? "bg-[#262238] text-[#ABA3C4] border border-white/10"
-                : "bg-[#FF5C7C] text-[#15121F]"
-            }`}
-          >
-            {followedBack[
-              notification.id
-            ]
-              ? "Following"
-              : "Follow back"}
-          </button>
-        ) : (
-          !notification.read && (
-            <span className="shrink-0 w-2 h-2 rounded-full bg-[#FF5C7C]" />
-          )
-        )}
-      </li>
+    router.push(
+      `/feed?post=${postId}`
     );
   };
 
@@ -1008,14 +911,67 @@ export default function NotificationPage() {
   if (loading) {
     return (
       <main
-        className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] flex items-center justify-center`}
+        className={`
+          ${fraunces.variable}
+          ${inter.variable}
+          ${mono.variable}
+          [font-family:var(--font-body)]
+          min-h-screen
+          bg-[#15121F]
+          flex
+          items-center
+          justify-center
+        `}
       >
         <div className="text-center">
-          <FaBell className="text-[#9D8DF1] text-2xl mx-auto mb-3 animate-pulse" />
+          <FaSpinner className="text-[#9D8DF1] text-2xl mx-auto mb-3 animate-spin" />
 
           <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4]">
-            loading notifications…
+            loading profile…
           </p>
+        </div>
+      </main>
+    );
+  }
+
+  /* =======================================================
+     ERROR
+  ======================================================= */
+
+  if (error) {
+    return (
+      <main
+        className={`
+          ${fraunces.variable}
+          ${inter.variable}
+          ${mono.variable}
+          [font-family:var(--font-body)]
+          min-h-screen
+          bg-[#15121F]
+          flex
+          items-center
+          justify-center
+          px-6
+        `}
+      >
+        <div className="w-full max-w-md bg-[#1E1A2E] border border-[#FF5C7C]/30 rounded-3xl p-6 text-center">
+          <FaUser className="text-[#FF5C7C] text-2xl mx-auto mb-4" />
+
+          <h2 className="text-[#F5F1EA] text-lg font-semibold">
+            Profile unavailable
+          </h2>
+
+          <p className="text-[#ABA3C4] text-sm mt-2">
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-5 px-5 py-2.5 rounded-full bg-[#FF5C7C] text-[#15121F] text-sm font-medium"
+          >
+            Go back
+          </button>
         </div>
       </main>
     );
@@ -1027,20 +983,22 @@ export default function NotificationPage() {
 
   return (
     <main
-      className={`${fraunces.variable} ${inter.variable} ${mono.variable} [font-family:var(--font-body)] min-h-screen w-full bg-[#15121F] relative overflow-hidden`}
+      className={`
+        ${fraunces.variable}
+        ${inter.variable}
+        ${mono.variable}
+        [font-family:var(--font-body)]
+        min-h-screen
+        w-full
+        bg-[#15121F]
+        text-[#F5F1EA]
+        relative
+        overflow-hidden
+      `}
     >
-      <style jsx>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
-
-      {/* BACKGROUND */}
+      {/* =================================================
+          BACKGROUND
+      ================================================= */}
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.06]">
         <div className="absolute -top-40 -left-40 w-[480px] h-[480px] rounded-full border border-[#9D8DF1]" />
@@ -1048,185 +1006,621 @@ export default function NotificationPage() {
         <div className="absolute -bottom-40 -right-40 w-[420px] h-[420px] rounded-full border border-[#FF5C7C]" />
       </div>
 
-      {/* BACK BUTTON */}
+      {/* =================================================
+          BACK BUTTON
+      ================================================= */}
 
       <button
-        onClick={() =>
-          router.back()
-        }
-        className="fixed top-4 left-4 z-20 bg-[#1E1A2E]/80 hover:bg-[#262238] border border-white/5 text-[#F5F1EA] p-2.5 sm:p-3 rounded-full transition-all duration-200 hover:scale-105 backdrop-blur-sm"
+        type="button"
+        onClick={() => router.back()}
+        className="
+          fixed
+          top-4
+          left-4
+          z-30
+          bg-[#1E1A2E]/80
+          hover:bg-[#262238]
+          border
+          border-white/5
+          text-[#F5F1EA]
+          p-2.5
+          sm:p-3
+          rounded-full
+          transition
+          hover:scale-105
+          backdrop-blur-sm
+        "
         title="Go back"
       >
         <FaArrowLeft className="text-sm sm:text-base" />
       </button>
 
-      {/* CONTENT */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
 
-      <div className="relative z-10 max-w-xl mx-auto pt-16 sm:pt-20 px-4 sm:px-6 pb-16">
+      <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 pt-20 pb-16">
 
-        {/* HEADER */}
+        {/* =================================================
+            TOP BAR
+        ================================================= */}
 
-        <div className="flex items-start justify-between gap-4 mb-1">
-
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl font-semibold text-[#F5F1EA]">
-              Notifications
-            </h1>
-
-            <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4] mt-1">
-              activity from your circle
+            <p className="[font-family:var(--font-mono)] text-[10px] uppercase tracking-[0.2em] text-[#9D8DF1]">
+              Circl profile
             </p>
+
+            <h1 className="[font-family:var(--font-display)] text-2xl sm:text-3xl font-semibold mt-1">
+              Profile
+            </h1>
           </div>
 
           {/* LOGOUT */}
 
-          <button
-            type="button"
-            onClick={
-              handleLogout
-            }
-            disabled={
-              loggingOut
-            }
-            className="shrink-0 flex items-center gap-2 [font-family:var(--font-mono)] text-[11px] px-3.5 py-2 rounded-full bg-[#1E1A2E] border border-[#FF5C7C]/30 text-[#FF8DA3] hover:bg-[#FF5C7C] hover:text-[#15121F] transition disabled:opacity-50"
-          >
-            <FaSignOutAlt className="text-[10px]" />
+          {isOwnProfile && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="
+                flex
+                items-center
+                gap-2
+                px-3.5
+                py-2
+                rounded-full
+                bg-[#1E1A2E]
+                border
+                border-[#FF5C7C]/30
+                text-[#FF8DA3]
+                hover:bg-[#FF5C7C]
+                hover:text-[#15121F]
+                transition
+                text-xs
+                [font-family:var(--font-mono)]
+                disabled:opacity-50
+              "
+            >
+              <FaSignOutAlt className="text-[10px]" />
 
-            {loggingOut
-              ? "logging out..."
-              : "Logout"}
-          </button>
-
-        </div>
-
-        {/* ERROR */}
-
-        {error && (
-          <div className="mt-5 bg-[#1E1A2E] border border-[#FF5C7C]/30 rounded-2xl px-4 py-3">
-            <p className="text-[#FF8DA3] text-xs">
-              {error}
-            </p>
-
-            <p className="text-[#ABA3C4] text-xs mt-1">
-              Make sure your backend has the
-              notifications routes enabled.
-            </p>
-          </div>
-        )}
-
-        {/* TABS */}
-
-        <div className="no-scrollbar flex gap-2 overflow-x-auto mt-5 mb-6">
-          {TABS.map(
-            (tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() =>
-                  setActiveTab(
-                    tab.id
-                  )
-                }
-                className={`shrink-0 [font-family:var(--font-mono)] text-xs px-4 py-2 rounded-full border transition ${
-                  activeTab ===
-                  tab.id
-                    ? "bg-[#FF5C7C] border-[#FF5C7C] text-[#15121F] font-medium"
-                    : "bg-[#1E1A2E] border-white/5 text-[#ABA3C4] hover:border-white/20"
-                }`}
-              >
-                {tab.label}
-              </button>
-            )
+              {loggingOut
+                ? "logging out..."
+                : "Logout"}
+            </button>
           )}
         </div>
 
-        {/* EMPTY */}
+        {/* =================================================
+            PROFILE CARD
+        ================================================= */}
 
-        {filtered.length ===
-        0 ? (
-          <div className="text-center py-16">
+        <section className="bg-[#1E1A2E] border border-white/5 rounded-[28px] p-5 sm:p-7">
 
-            <span className="flex items-center justify-center w-12 h-12 rounded-full bg-[#1E1A2E] border border-white/5 mx-auto mb-4">
-              <FaBell className="text-[#9D8DF1]" />
-            </span>
+          {/* =================================================
+              PROFILE HEADER
+          ================================================= */}
 
-            <p className="text-[#ABA3C4] text-sm">
-              Nothing here yet.
-            </p>
+          <div className="flex flex-col sm:flex-row gap-5 sm:items-center">
 
-            <p className="text-[#ABA3C4]/60 text-xs mt-1">
-              New activity will show up as it happens.
-            </p>
+            {/* AVATAR */}
 
-          </div>
-        ) : (
-          <div className="space-y-6">
+            <div className="relative shrink-0 mx-auto sm:mx-0">
+              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full p-[3px] bg-gradient-to-br from-[#FF5C7C] via-[#FFC145] to-[#9D8DF1]">
 
-            {/* NEW */}
+                <Image
+                  src={getImageUrl(
+                    user?.profilePic
+                  )}
+                  alt={
+                    user?.username ||
+                    "Profile"
+                  }
+                  width={128}
+                  height={128}
+                  unoptimized
+                  className="
+                    w-full
+                    h-full
+                    rounded-full
+                    object-cover
+                    border-4
+                    border-[#15121F]
+                  "
+                  onError={(event) => {
+                    event.currentTarget.src =
+                      "/images/default-avatar.png";
+                  }}
+                />
 
-            {newItems.length >
-              0 && (
-                <div>
+              </div>
+            </div>
 
-                  <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mb-2 px-1">
-                    New
-                  </p>
+            {/* PROFILE INFO */}
 
-                  <ul className="space-y-1">
-                    {newItems.map(
-                      (
-                        notification
-                      ) => (
-                        <NotificationRow
-                          key={
-                            notification.id
-                          }
-                          notification={
-                            notification
-                          }
-                        />
-                      )
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+
+                {/* USERNAME */}
+
+                <h2 className="[font-family:var(--font-display)] text-2xl font-semibold break-words">
+                  {user?.username || "User"}
+                </h2>
+
+                {/* OTHER USER ACTIONS */}
+
+                {!isOwnProfile && (
+                  <div className="flex items-center justify-center sm:justify-start gap-2">
+
+                    {/* FOLLOW / UNFOLLOW */}
+
+                    <button
+                      type="button"
+                      onClick={handleFollowToggle}
+                      disabled={followLoading}
+                      className={`
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                        px-4
+                        py-2
+                        rounded-full
+                        text-xs
+                        font-semibold
+                        transition
+                        disabled:opacity-60
+                        disabled:cursor-not-allowed
+
+                        ${
+                          isFollowing
+                            ? "bg-[#262238] border border-[#9D8DF1]/40 text-[#D6D0E4] hover:border-[#FF5C7C]/50 hover:text-[#FF8DA3]"
+                            : "bg-[#9D8DF1] text-[#15121F] hover:bg-[#B5A8F5]"
+                        }
+                      `}
+                    >
+                      {followLoading ? (
+                        <FaSpinner className="animate-spin" />
+                      ) : isFollowing ? (
+                        <>
+                          <FaUserCheck />
+                          Following
+                        </>
+                      ) : (
+                        <>
+                          <FaUserPlus />
+                          Follow
+                        </>
+                      )}
+                    </button>
+
+                    {/* =================================================
+                        INBOX
+
+                        IMPORTANT:
+                        Only appears AFTER following.
+                    ================================================= */}
+
+                    {isFollowing && (
+                      <button
+                        type="button"
+                        onClick={handleMessageUser}
+                        disabled={messageLoading}
+                        className="
+                          flex
+                          items-center
+                          justify-center
+                          gap-2
+                          px-4
+                          py-2
+                          rounded-full
+                          text-xs
+                          font-semibold
+                          bg-[#262238]
+                          border
+                          border-[#9D8DF1]/40
+                          text-[#D6D0E4]
+                          hover:bg-[#302A46]
+                          hover:border-[#9D8DF1]
+                          hover:text-white
+                          transition
+                          disabled:opacity-60
+                          disabled:cursor-not-allowed
+                        "
+                      >
+                        {messageLoading ? (
+                          <FaSpinner className="animate-spin" />
+                        ) : (
+                          <FaEnvelope />
+                        )}
+
+                        Inbox
+                      </button>
                     )}
-                  </ul>
 
-                </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* EMAIL */}
+
+              <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4] mt-1">
+                {user?.email}
+              </p>
+
+              {/* BIO */}
+
+              {user?.bio ? (
+                <p className="text-sm text-[#D6D0E4] mt-3 max-w-xl">
+                  {user.bio}
+                </p>
+              ) : (
+                <p className="text-sm text-[#ABA3C4]/60 mt-3">
+                  No bio yet.
+                </p>
               )}
 
-            {/* EARLIER */}
+            </div>
+          </div>
 
-            {earlierItems.length >
-              0 && (
-                <div>
+          {/* =================================================
+              STATISTICS
+          ================================================= */}
 
-                  <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mb-2 px-1">
-                    Earlier
-                  </p>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-7">
 
-                  <ul className="space-y-1">
-                    {earlierItems.map(
-                      (
-                        notification
-                      ) => (
-                        <NotificationRow
-                          key={
-                            notification.id
-                          }
-                          notification={
-                            notification
-                          }
-                        />
-                      )
-                    )}
-                  </ul>
+            {/* POSTS */}
 
-                </div>
-              )}
+            <div className="bg-[#15121F] border border-white/5 rounded-2xl px-3 py-4 text-center">
+              <p className="[font-family:var(--font-display)] text-xl sm:text-2xl font-semibold">
+                {postCount}
+              </p>
+
+              <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mt-1">
+                Posts
+              </p>
+            </div>
+
+            {/* FOLLOWERS */}
+
+            <button
+              type="button"
+              onClick={openFollowers}
+              className="
+                bg-[#15121F]
+                border
+                border-white/5
+                hover:border-[#FF5C7C]/40
+                rounded-2xl
+                px-3
+                py-4
+                text-center
+                transition
+                group
+              "
+            >
+              <p className="flex items-center justify-center gap-1.5 [font-family:var(--font-display)] text-xl sm:text-2xl font-semibold">
+                {followerCount}
+
+                <FaUsers className="text-[10px] text-[#FF5C7C] opacity-0 group-hover:opacity-100 transition" />
+              </p>
+
+              <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mt-1">
+                Followers
+              </p>
+            </button>
+
+            {/* FOLLOWING */}
+
+            <button
+              type="button"
+              onClick={openFollowing}
+              className="
+                bg-[#15121F]
+                border
+                border-white/5
+                hover:border-[#9D8DF1]/40
+                rounded-2xl
+                px-3
+                py-4
+                text-center
+                transition
+                group
+              "
+            >
+              <p className="flex items-center justify-center gap-1.5 [font-family:var(--font-display)] text-xl sm:text-2xl font-semibold">
+                {followingCount}
+
+                <FaUsers className="text-[10px] text-[#9D8DF1] opacity-0 group-hover:opacity-100 transition" />
+              </p>
+
+              <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] uppercase tracking-wide mt-1">
+                Following
+              </p>
+            </button>
 
           </div>
+
+          {/* =================================================
+              EDIT PROFILE
+
+              ONLY CURRENT USER
+          ================================================= */}
+
+          {isOwnProfile && (
+            <button
+              type="button"
+              onClick={handleEditProfile}
+              className="
+                w-full
+                mt-4
+                flex
+                items-center
+                justify-center
+                gap-2
+                py-3
+                rounded-2xl
+                bg-[#262238]
+                hover:bg-[#302A46]
+                border
+                border-white/5
+                text-[#F5F1EA]
+                text-sm
+                font-medium
+                transition
+              "
+            >
+              <FaPen className="text-xs text-[#9D8DF1]" />
+
+              Edit profile
+            </button>
+          )}
+
+        </section>
+
+        {/* =================================================
+            POSTS SECTION
+        ================================================= */}
+
+        <section className="mt-8">
+
+          <div className="flex items-center justify-between mb-4">
+
+            <div>
+              <h2 className="[font-family:var(--font-display)] text-xl sm:text-2xl font-semibold">
+                Posts
+              </h2>
+
+              <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4] mt-1">
+                {postCount}{" "}
+                {postCount === 1
+                  ? "post"
+                  : "posts"}
+              </p>
+            </div>
+
+            <FaImage className="text-[#9D8DF1]" />
+
+          </div>
+
+          {/* POSTS LOADING */}
+
+          {postsLoading && (
+            <div className="bg-[#1E1A2E] border border-white/5 rounded-3xl p-10 text-center">
+
+              <FaSpinner className="text-[#9D8DF1] text-xl mx-auto animate-spin" />
+
+              <p className="[font-family:var(--font-mono)] text-xs text-[#ABA3C4] mt-3">
+                loading posts…
+              </p>
+
+            </div>
+          )}
+
+          {/* POSTS ERROR */}
+
+          {!postsLoading && postsError && (
+            <div className="bg-[#1E1A2E] border border-[#FF5C7C]/20 rounded-3xl p-6 text-center">
+
+              <FaImage className="text-[#FF5C7C] mx-auto mb-3" />
+
+              <p className="text-sm text-[#F5F1EA]">
+                Could not load posts
+              </p>
+
+              <p className="text-xs text-[#ABA3C4] mt-1">
+                {postsError}
+              </p>
+
+            </div>
+          )}
+
+          {/* NO POSTS */}
+
+          {!postsLoading &&
+            !postsError &&
+            posts.length === 0 && (
+              <div className="bg-[#1E1A2E] border border-white/5 rounded-3xl p-12 text-center">
+
+                <span className="flex items-center justify-center w-14 h-14 rounded-full bg-[#15121F] border border-white/5 mx-auto">
+                  <FaImage className="text-[#9D8DF1]" />
+                </span>
+
+                <h3 className="text-sm font-medium text-[#F5F1EA] mt-4">
+                  No posts yet
+                </h3>
+
+                <p className="text-xs text-[#ABA3C4] mt-1">
+                  Posts shared by this user
+                  will appear here.
+                </p>
+
+              </div>
+            )}
+
+          {/* POST GRID */}
+
+          {!postsLoading &&
+            !postsError &&
+            posts.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+
+                {posts.map((post) => {
+                  const postId =
+                    post?._id ||
+                    post?.id;
+
+                  const image =
+                    post?.image ||
+                    post?.imageUrl ||
+                    post?.media ||
+                    post?.photo ||
+                    null;
+
+                  const title =
+                    post?.title ||
+                    post?.caption ||
+                    post?.content ||
+                    "Post";
+
+                  const likes =
+                    Array.isArray(post?.likes)
+                      ? post.likes.length
+                      : Number(
+                          post?.likesCount ||
+                            post?.likeCount ||
+                            0
+                        );
+
+                  const comments =
+                    Array.isArray(
+                      post?.comments
+                    )
+                      ? post.comments.length
+                      : Number(
+                          post?.commentsCount ||
+                            post?.commentCount ||
+                            0
+                        );
+
+                  return (
+                    <button
+                      key={postId}
+                      type="button"
+                      onClick={() =>
+                        openPost(post)
+                      }
+                      className="
+                        group
+                        relative
+                        aspect-square
+                        overflow-hidden
+                        rounded-2xl
+                        bg-[#1E1A2E]
+                        border
+                        border-white/5
+                        text-left
+                      "
+                    >
+                      {/* IMAGE */}
+
+                      {image ? (
+                        <Image
+                          src={getImageUrl(
+                            image
+                          )}
+                          alt={title}
+                          fill
+                          unoptimized
+                          className="
+                            object-cover
+                            transition
+                            duration-300
+                            group-hover:scale-105
+                          "
+                          onError={(event) => {
+                            event.currentTarget.style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-[#262238]">
+                          <FaImage className="text-2xl text-[#9D8DF1]" />
+                        </div>
+                      )}
+
+                      {/* HOVER OVERLAY */}
+
+                      <div
+                        className="
+                          absolute
+                          inset-0
+                          bg-gradient-to-t
+                          from-[#15121F]/90
+                          via-transparent
+                          to-transparent
+                          opacity-0
+                          group-hover:opacity-100
+                          transition
+                        "
+                      />
+
+                      {/* POST INFO */}
+
+                      <div
+                        className="
+                          absolute
+                          bottom-0
+                          left-0
+                          right-0
+                          p-3
+                          opacity-0
+                          group-hover:opacity-100
+                          transition
+                        "
+                      >
+                        <p className="text-xs text-[#F5F1EA] font-medium truncate">
+                          {title}
+                        </p>
+
+                        <div className="flex items-center gap-3 mt-1">
+
+                          <span className="flex items-center gap-1 text-[10px] text-[#D6D0E4]">
+                            <FaHeart className="text-[#FF5C7C]" />
+                            {likes}
+                          </span>
+
+                          <span className="flex items-center gap-1 text-[10px] text-[#D6D0E4]">
+                            <FaComment className="text-[#9D8DF1]" />
+                            {comments}
+                          </span>
+
+                        </div>
+                      </div>
+
+                    </button>
+                  );
+                })}
+
+              </div>
+            )}
+
+        </section>
+
+        {/* =================================================
+            JOINED DATE
+        ================================================= */}
+
+        {user?.createdAt && (
+          <p className="[font-family:var(--font-mono)] text-[10px] text-[#ABA3C4]/50 text-center mt-10">
+            Joined{" "}
+            {formatDate(user.createdAt)}
+          </p>
         )}
 
       </div>
     </main>
   );
 }
-
