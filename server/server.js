@@ -1,3 +1,4 @@
+
 // =========================================================
 // LOAD ENVIRONMENT VARIABLES FIRST
 // =========================================================
@@ -63,56 +64,44 @@ console.log("========================================");
 // CORS
 // =========================================================
 
+// Frontend URLs allowed to communicate with this API
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
+
+  // Production Vercel frontend
+  "https://circl-project-nine.vercel.app",
 ];
 
-// Add deployed frontend URL from .env
+// Also allow CLIENT_URL from Render environment variables
 if (process.env.CLIENT_URL) {
-  if (
-    !allowedOrigins.includes(
-      process.env.CLIENT_URL
-    )
-  ) {
-    allowedOrigins.push(
-      process.env.CLIENT_URL
-    );
+  if (!allowedOrigins.includes(process.env.CLIENT_URL)) {
+    allowedOrigins.push(process.env.CLIENT_URL);
   }
 }
 
+console.log("Allowed CORS origins:");
+console.log(allowedOrigins);
+
 app.use(
   cors({
-    origin: function (
-      origin,
-      callback
-    ) {
-      // Allow requests with no origin
-      // Example: Postman, Thunder Client,
+    origin: function (origin, callback) {
+      // Allow requests with no origin.
+      // Examples:
+      // Postman
+      // Thunder Client
       // server-to-server requests
 
       if (!origin) {
-        return callback(
-          null,
-          true
-        );
+        return callback(null, true);
       }
 
-      if (
-        allowedOrigins.includes(
-          origin
-        )
-      ) {
-        return callback(
-          null,
-          true
-        );
+      // Allow known frontend origins
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
       }
 
-      console.log(
-        "Blocked CORS origin:",
-        origin
-      );
+      console.log("Blocked CORS origin:", origin);
 
       return callback(
         new Error(
@@ -164,9 +153,9 @@ app.use(
 //
 // server/uploads/profile-pictures/
 //
-// This makes them accessible through:
+// They are accessible through:
 //
-// http://localhost:5000/uploads/profile-pictures/filename.jpg
+// /uploads/profile-pictures/filename.jpg
 //
 // =========================================================
 
@@ -201,8 +190,7 @@ app.use(
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message:
-      "Circl API is running",
+    message: "Circl API is running",
   });
 });
 
@@ -213,8 +201,7 @@ app.get("/", (req, res) => {
 app.get("/api", (req, res) => {
   res.status(200).json({
     success: true,
-    message:
-      "Circl API is working",
+    message: "Circl API is working",
     version: "1.0.0",
   });
 });
@@ -316,6 +303,7 @@ app.use(
 //
 // IMPORTANT:
 // This MUST come AFTER all API routes.
+//
 // =========================================================
 
 app.use(
@@ -487,3 +475,4 @@ const startServer =
 // =========================================================
 
 startServer();
+
