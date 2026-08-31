@@ -11,6 +11,13 @@ import {
 } from "react-icons/fa";
 
 /* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+/* =========================================================
    CIRCL LOGO
 ========================================================= */
 
@@ -156,7 +163,7 @@ export default function SignUp() {
       setLoading(true);
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/register",
+        `${API_URL}/auth/register`,
         {
           method: "POST",
 

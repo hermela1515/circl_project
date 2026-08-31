@@ -11,6 +11,13 @@ import {
 } from "react-icons/fa";
 
 /* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+/* =========================================================
    CIRCL LOGO
 ========================================================= */
 
@@ -145,7 +152,7 @@ export default function LogIn() {
       ----------------------------------------- */
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/login",
+        `${API_URL}/auth/login`,
         {
           method: "POST",
 

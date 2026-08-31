@@ -35,6 +35,13 @@ const mono = JetBrains_Mono({
   variable: "--font-mono",
 });
 
+/* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
 const WORLD = [
   { country: "Ethiopia", flag: "🇪🇹" },
   { country: "Japan", flag: "🇯🇵" },
@@ -259,7 +266,7 @@ export default function PostPage() {
       */
 
       const response = await fetch(
-        "http://localhost:5000/api/posts",
+        `${API_URL}/posts`,
         {
           method: "POST",
 
