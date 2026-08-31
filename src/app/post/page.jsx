@@ -39,8 +39,10 @@ const mono = JetBrains_Mono({
    API
 ========================================================= */
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000/api"
+).replace(/\/$/, "");
 
 const WORLD = [
   { country: "Ethiopia", flag: "🇪🇹" },
