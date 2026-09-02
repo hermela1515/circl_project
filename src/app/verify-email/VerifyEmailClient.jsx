@@ -9,8 +9,11 @@ import {
   FaSpinner,
 } from "react-icons/fa";
 
+// IMPORTANT: API_URL is the BACKEND BASE URL ONLY (no /api).
+// We add /api inside the fetch call below.
+
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -30,7 +33,7 @@ export default function VerifyEmailPage() {
     const verifyEmail = async () => {
       try {
         const response = await fetch(
-          `${API_URL}/auth/verify-email?token=${encodeURIComponent(
+          `${API_URL}/api/auth/verify-email?token=${encodeURIComponent(
             token
           )}`
         );

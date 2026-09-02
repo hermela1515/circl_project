@@ -14,8 +14,11 @@ import {
    API
 ========================================================= */
 
+// IMPORTANT: API_URL is the BACKEND BASE URL ONLY (no /api).
+// We add /api inside the fetch call below.
+
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 /* =========================================================
    CIRCL LOGO
@@ -163,7 +166,7 @@ export default function SignUp() {
       setLoading(true);
 
       const response = await fetch(
-        `${API_URL}/auth/register`,
+        `${API_URL}/api/auth/register`,
         {
           method: "POST",
 

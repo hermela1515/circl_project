@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -44,9 +43,12 @@ const mono = JetBrains_Mono({
    API
 ========================================================= */
 
+// IMPORTANT: API_URL is the BACKEND BASE URL ONLY (no /api).
+// We add /api inside each fetch call below.
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api";
+  "http://localhost:5000";
 
 /* =========================================================
    ICONS
@@ -303,7 +305,7 @@ export default function NotificationPage() {
         }
 
         const response = await fetch(
-          `${API_URL}/notifications`,
+          `${API_URL}/api/notifications`,
           {
             method: "GET",
 
@@ -401,7 +403,7 @@ export default function NotificationPage() {
       );
 
       await fetch(
-        `${API_URL}/notifications/${id}/read`,
+        `${API_URL}/api/notifications/${id}/read`,
         {
           method: "PUT",
 
@@ -443,7 +445,7 @@ export default function NotificationPage() {
       );
 
       const response = await fetch(
-        `${API_URL}/notifications/read-all`,
+        `${API_URL}/api/notifications/read-all`,
         {
           method: "PUT",
 
@@ -501,8 +503,8 @@ export default function NotificationPage() {
       }));
 
       const endpoint = currentlyFollowing
-        ? `${API_URL}/users/${notification.actorId}/unfollow`
-        : `${API_URL}/users/${notification.actorId}/follow`;
+        ? `${API_URL}/api/users/${notification.actorId}/unfollow`
+        : `${API_URL}/api/users/${notification.actorId}/follow`;
 
       const response = await fetch(
         endpoint,
@@ -672,22 +674,12 @@ export default function NotificationPage() {
           title={`View ${notification.actor}'s profile`}
         >
           <span className="block w-11 h-11 rounded-full p-[2px] bg-gradient-to-br from-[#FF5C7C] via-[#FFC145] to-[#9D8DF1]">
-            <Image
+            <img
               src={
                 notification.avatar ||
                 "/images/default-avatar.png"
               }
               alt={notification.actor}
-              width={44}
-              height={44}
-              unoptimized={
-                notification.avatar?.startsWith(
-                  "http"
-                ) ||
-                notification.avatar?.startsWith(
-                  "data:"
-                )
-              }
               className="rounded-full object-cover w-full h-full border-2 border-[#15121F]"
             />
           </span>

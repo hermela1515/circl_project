@@ -41,8 +41,29 @@ const mono = JetBrains_Mono({
 // BACKEND
 // =====================================================
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+/* ============================================================
+   NORMALIZE API BASE
+   Prevents duplicated "/api/api" or trailing-slash issues
+   caused by env vars that already include "/api".
+============================================================ */
+
+function normalizeApiBase(url) {
+  if (!url) {
+    return "http://localhost:5000/api";
+  }
+
+  // strip trailing slashes
+  let clean = url.replace(/\/+$/, "");
+
+  // collapse an accidental doubled /api
+  clean = clean.replace(/\/api\/api$/, "/api");
+
+  return clean;
+}
+
+const API_BASE = normalizeApiBase(
+  process.env.NEXT_PUBLIC_API_URL
+);
 
 // =====================================================
 // REGIONS
@@ -244,6 +265,32 @@ function getUserIdFromStorage() {
   }
 }
 
+// -----------------------------------------------------
+// Resolve relative backend paths to absolute URLs
+// (mirrors the logic already used on the profile page)
+// -----------------------------------------------------
+function getImageUrl(image) {
+  if (!image) {
+    return "/images/default-avatar.png";
+  }
+
+  if (
+    image.startsWith("http://") ||
+    image.startsWith("https://") ||
+    image.startsWith("data:")
+  ) {
+    return image;
+  }
+
+  const backendUrl = API_BASE.replace(/\/api\/?$/, "");
+
+  if (image.startsWith("/")) {
+    return `${backendUrl}${image}`;
+  }
+
+  return `${backendUrl}/${image}`;
+}
+
 function getCountryInfo(user) {
   const country =
     user?.country ||
@@ -271,7 +318,7 @@ function getProfileImage(user) {
     user?.profilePicture ||
     user?.avatar ||
     user?.image ||
-    "/images/default-avatar.png"
+    null
   );
 }
 
@@ -398,8 +445,12 @@ export default function ExplorePage() {
         // FETCH POSTS
         // ---------------------------------------------
 
+        const postsUrl = `${API_BASE}/posts`;
+
+        console.log("Loading posts:", postsUrl);
+
         const postsResponse = await fetch(
-          `${API_BASE}/posts`,
+          postsUrl,
           {
             method: "GET",
             headers: {
@@ -409,7 +460,9 @@ export default function ExplorePage() {
         );
 
         if (!postsResponse.ok) {
-          throw new Error("Unable to load posts.");
+          throw new Error(
+            `Unable to load posts (${postsResponse.status}) from ${postsUrl}`
+          );
         }
 
         const postsData = await postsResponse.json();
@@ -945,8 +998,10 @@ export default function ExplorePage() {
                   const location =
                     getCountryInfo(person);
 
-                  const image =
-                    getProfileImage(person);
+                  // FIX: resolve relative backend path to absolute URL
+                  const image = getImageUrl(
+                    getProfileImage(person)
+                  );
 
                   const isFollowing =
                     Boolean(
@@ -978,6 +1033,10 @@ export default function ExplorePage() {
                             height={56}
                             unoptimized
                             className="rounded-full object-cover w-full h-full border-2 border-[#1E1A2E]"
+                            onError={(event) => {
+                              event.currentTarget.src =
+                                "/images/default-avatar.png";
+                            }}
                           />
                         </span>
 
@@ -1058,7 +1117,10 @@ export default function ExplorePage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 sm:gap-2">
             {filteredPosts.map((post) => {
-              const image = getPostImage(post);
+              // FIX: resolve relative backend path to absolute URL
+              const image = getPostImage(post)
+                ? getImageUrl(getPostImage(post))
+                : null;
 
               const postUser =
                 post?.user ||
@@ -1094,6 +1156,10 @@ export default function ExplorePage() {
                       fill
                       unoptimized
                       className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      onError={(event) => {
+                        event.currentTarget.style.display =
+                          "none";
+                      }}
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-[#262238] p-4">

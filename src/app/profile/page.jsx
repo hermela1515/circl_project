@@ -50,9 +50,29 @@ const mono = JetBrains_Mono({
    API
 ========================================================= */
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api";
+/* ============================================================
+   NORMALIZE API BASE
+   Prevents duplicated "/api/api" or trailing-slash issues
+   caused by env vars that already include "/api".
+============================================================ */
+
+function normalizeApiBase(url) {
+  if (!url) {
+    return "http://localhost:5000/api";
+  }
+
+  // strip trailing slashes
+  let clean = url.replace(/\/+$/, "");
+
+  // collapse an accidental doubled /api
+  clean = clean.replace(/\/api\/api$/, "/api");
+
+  return clean;
+}
+
+const API_URL = normalizeApiBase(
+  process.env.NEXT_PUBLIC_API_URL
+);
 
 /* =========================================================
    TOKEN
