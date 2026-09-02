@@ -40,29 +40,36 @@ const mono = JetBrains_Mono({
    API URL
 ============================================================ */
 
+// IMPORTANT:
+// API_URL is the BACKEND BASE URL ONLY (no /api on the end).
+//
+// Vercel:
+// NEXT_PUBLIC_API_URL=https://circl-project.onrender.com
+//
+// Local:
+// http://localhost:5000
+//
+// We add /api inside each fetch call below, e.g. `${API_URL}/api/posts`.
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api";
+  "http://localhost:5000";
 
 /* ============================================================
    BACKEND ORIGIN
 ============================================================ */
 
 /*
-  API_URL:
-  http://localhost:5000/api
-
-  BACKEND_ORIGIN:
-  http://localhost:5000
-
-  This is important because profile pictures are often returned
-  by the backend as relative paths such as:
+  BACKEND_ORIGIN is used to resolve relative image paths such as:
 
   /uploads/profilePics/image.jpg
   /images/profile.jpg
+
+  Since API_URL is already the bare origin (no /api), it IS the
+  backend origin — no stripping needed.
 */
 
-const BACKEND_ORIGIN = API_URL.replace(/\/api\/?$/, "");
+const BACKEND_ORIGIN = API_URL;
 
 /* ============================================================
    PROFILE IMAGE URL
@@ -161,7 +168,7 @@ console.log("========================================");
 console.log("CIRCL FEED API");
 console.log("API_URL:", API_URL);
 console.log("BACKEND_ORIGIN:", BACKEND_ORIGIN);
-console.log("POSTS URL:", `${API_URL}/posts`);
+console.log("POSTS URL:", `${API_URL}/api/posts`);
 console.log("========================================");
 
 /* ============================================================
@@ -479,7 +486,7 @@ export default function FeedPage() {
           try {
             const meResponse =
               await fetch(
-                `${API_URL}/users/me`,
+                `${API_URL}/api/users/me`,
                 {
                   method: "GET",
                   cache: "no-store",
@@ -578,7 +585,7 @@ export default function FeedPage() {
         ------------------------------------------------------- */
 
         const postsUrl =
-          `${API_URL}/posts`;
+          `${API_URL}/api/posts`;
 
         console.log(
           "========================================"
@@ -844,7 +851,7 @@ export default function FeedPage() {
     try {
       const response =
         await fetch(
-          `${API_URL}/posts/${id}/like`,
+          `${API_URL}/api/posts/${id}/like`,
           {
             method: "POST",
 
@@ -1017,7 +1024,7 @@ export default function FeedPage() {
       try {
         const response =
           await fetch(
-            `${API_URL}/posts/${id}/comments`,
+            `${API_URL}/api/posts/${id}/comments`,
             {
               method: "POST",
 
@@ -1193,7 +1200,7 @@ export default function FeedPage() {
       try {
         const response =
           await fetch(
-            `${API_URL}/posts/${id}`,
+            `${API_URL}/api/posts/${id}`,
             {
               method: "DELETE",
 
@@ -1353,7 +1360,7 @@ export default function FeedPage() {
 
         const response =
           await fetch(
-            `${API_URL}/users/${targetUserId}/follow`,
+            `${API_URL}/api/users/${targetUserId}/follow`,
             {
               method: "POST",
 
@@ -1959,7 +1966,7 @@ export default function FeedPage() {
             <p className="text-xs text-[#ABA3C4] mt-2 break-all">
               API:
               {" "}
-              {API_URL}/posts
+              {API_URL}/api/posts
             </p>
 
             <button
