@@ -41,7 +41,7 @@ const mono = JetBrains_Mono({
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api"
+  "http://localhost:5000"
 ).replace(/\/$/, "");
 
 const WORLD = [
@@ -268,8 +268,8 @@ export default function PostPage() {
       */
 
       const response = await fetch(
-        `${API_URL}/posts`,
-        {
+  `${API_URL}/api/posts`,
+  {
           method: "POST",
 
           headers: {
